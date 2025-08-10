@@ -1,0 +1,9 @@
+// WRONG ❌
+text: "🔍 *Processing your product link...*
+
+Please wait while I fetch the details! ⏳",
+
+// FIXED ✅  
+text: `🔍 *Processing your product link...*
+
+Please wait while I fetch the details! ⏳`,
