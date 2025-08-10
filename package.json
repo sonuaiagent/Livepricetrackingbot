@@ -1,0 +1,16 @@
+{
+  "name": "livepricetrackingbot",
+  "version": "1.0.0",
+  "description": "Telegram bot for tracking Amazon and Flipkart product prices",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "keywords": ["telegram", "bot", "price-tracker", "amazon", "flipkart"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
