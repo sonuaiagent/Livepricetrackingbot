@@ -1,5 +1,5 @@
-// Enhanced Working Version - Robust Product Scraping
-const BOT_VERSION = "6.4.0-ROBUST";
+// Enhanced Flipkart-Only Version - Advanced Scraping Techniques
+const BOT_VERSION = "7.0.0-FLIPKART-ONLY";
 
 export default {
   async fetch(request, env) {
@@ -12,7 +12,7 @@ export default {
       return handleUpdate(update, env);
     }
 
-    return new Response(`✅ Livepricetrackingbot v${BOT_VERSION} - Robust Scraping!`, { status: 200 });
+    return new Response(`✅ Flipkart Price Tracker v${BOT_VERSION} - Flipkart Specialist!`, { status: 200 });
   }
 };
 
@@ -29,8 +29,8 @@ async function handleUpdate(update, env) {
 
     if (messageText.startsWith('/start')) {
       await sendWelcomeMessage(chatId, env.TG_BOT_TOKEN);
-    } else if (isProductURL(messageText)) {
-      await handleProductURL(chatId, messageText, env.TG_BOT_TOKEN);
+    } else if (isFlipkartURL(messageText)) {
+      await handleFlipkartURL(chatId, messageText, env.TG_BOT_TOKEN);
     } else {
       await sendHelpMessage(chatId, env.TG_BOT_TOKEN);
     }
@@ -44,30 +44,33 @@ async function handleUpdate(update, env) {
 }
 
 async function sendWelcomeMessage(chatId, token) {
-  const welcomeText = `🤖 *Livepricetrackingbot v${BOT_VERSION} Online* ✅
+  const welcomeText = `🛒 *Flipkart Price Tracker v${BOT_VERSION}* ✅
 
-Welcome! I'm your robust price tracking assistant.
+Welcome! I'm your specialized **Flipkart-only** price tracking assistant.
 
-📱 *How to use:*
-1. Send me an Amazon or Flipkart product link
-2. I'll extract real product details and current price
-3. Get comprehensive price information
+📱 *Enhanced Features:*
+• **Product Names & Titles** - Complete product information
+• **Actual vs Selling Price** - Both MRP and discounted prices
+• **Reviews & Ratings** - Customer feedback and star ratings
+• **Product Specifications** - Memory, display, and technical details
+• **Available Offers** - Current discounts and promotions
+• **Advanced Scraping** - Multiple extraction methods for reliability
 
-🔗 *Supported platforms:*
-• Amazon India (amazon.in)
-• Flipkart (flipkart.com)
+🔗 *Supported Platform:*
+• **Flipkart.com ONLY** - Specialized extraction techniques
 
 ✨ *Example URLs:*
-Just paste: https://www.amazon.in/product-link
-Or: https://www.flipkart.com/product-link
+Just paste: https://www.flipkart.com/product-name/p/PRODUCT-ID
+Or: https://flipkart.com/mobiles/pr?sid=tyy
 
-🆕 *Robust Features:*
-• Advanced product title extraction
-• Multiple price detection methods
-• Real-time scraping with fallbacks
-• Enhanced error handling with details
+🆕 *Advanced Capabilities:*
+• Multiple price detection (MRP vs Sale)
+• Review and rating extraction
+• Specification parsing
+• Offer and discount detection
+• Error handling for missing data
 
-Ready to track real prices! 🚀`;
+Ready to track Flipkart prices with precision! 🚀`;
 
   await tgSendMessage(token, {
     chat_id: chatId,
@@ -77,20 +80,27 @@ Ready to track real prices! 🚀`;
 }
 
 async function sendHelpMessage(chatId, token) {
-  const helpText = `❓ *Robust Price Tracker Help*
+  const helpText = `❓ *Flipkart Price Tracker Help*
 
-📝 *Instructions:*
-• Send me a product URL from Amazon.in or Flipkart.com
-• I'll fetch actual product title and current price
-• Get formatted product information with details
+📝 *Specialized for Flipkart:*
+• Send me **ANY Flipkart product URL**
+• I'll extract comprehensive product details
+• Get actual price, selling price, reviews, and specifications
 
-🔗 *Supported formats:*
-✅ https://www.amazon.in/product-name/dp/PRODUCT-ID
-✅ https://amazon.in/dp/PRODUCT-ID
-✅ https://www.flipkart.com/product-name/p/PRODUCT-ID
-✅ https://flipkart.com/product-name/p/PRODUCT-ID
+🔗 *Supported Flipkart URLs:*
+✅ Product pages: flipkart.com/product-name/p/ID
+✅ Mobile category: flipkart.com/mobiles/...
+✅ Electronics: flipkart.com/electronics/...
+✅ Any Flipkart product link
 
-*Try sending any real Amazon or Flipkart product link!* 📊`;
+🆕 *What I Extract:*
+• **Product Name** - Full title and description
+• **Pricing** - Both MRP and selling price
+• **Reviews** - Customer ratings and review count
+• **Specifications** - Technical details when available
+• **Offers** - Current discounts and promotions
+
+*Send any Flipkart product link to get started!* 📊`;
 
   await tgSendMessage(token, {
     chat_id: chatId,
@@ -99,29 +109,29 @@ async function sendHelpMessage(chatId, token) {
   });
 }
 
-function isProductURL(text) {
-  const hasAmazon = text.includes('amazon.in');
+function isFlipkartURL(text) {
+  // Flipkart-only URL detection
   const hasFlipkart = text.includes('flipkart.com');
   const isHTTP = text.startsWith('http');
   
-  const result = isHTTP && (hasAmazon || hasFlipkart);
+  const result = isHTTP && hasFlipkart;
   
-  console.log(`🔍 [v${BOT_VERSION}] URL detection: ${result}`);
+  console.log(`🔍 [v${BOT_VERSION}] Flipkart URL detection: ${result}`);
   return result;
 }
 
-async function handleProductURL(chatId, url, token) {
+async function handleFlipkartURL(chatId, url, token) {
   try {
-    console.log(`🛒 [v${BOT_VERSION}] Processing: ${url}`);
+    console.log(`🛒 [v${BOT_VERSION}] Processing Flipkart URL: ${url}`);
     
     await tgSendMessage(token, {
       chat_id: chatId,
-      text: `🔍 *Processing your product link...*\n\n🚀 Extracting real product data! ⏳`,
+      text: `🔍 *Processing Flipkart Product...*\n\n🚀 Extracting comprehensive product data!\n• Product name & specifications\n• Actual vs selling price\n• Reviews & ratings\n• Available offers\n\n⏳ *Please wait...*`,
       parse_mode: "Markdown"
     });
 
-    const productInfo = await scrapeProductRobust(url);
-    const productText = formatProductMessage(productInfo, url);
+    const productInfo = await scrapeFlipkartAdvanced(url);
+    const productText = formatFlipkartMessage(productInfo, url);
     
     await tgSendMessage(token, {
       chat_id: chatId,
@@ -129,28 +139,28 @@ async function handleProductURL(chatId, url, token) {
       parse_mode: "Markdown"
     });
 
-    console.log(`✅ [v${BOT_VERSION}] Product sent: ${productInfo.title.substring(0, 50)}...`);
+    console.log(`✅ [v${BOT_VERSION}] Flipkart product sent: ${productInfo.title.substring(0, 50)}...`);
 
   } catch (error) {
-    console.error(`❌ [v${BOT_VERSION}] Error processing:`, error);
+    console.error(`❌ [v${BOT_VERSION}] Error processing Flipkart URL:`, error);
     
     await tgSendMessage(token, {
       chat_id: chatId,
-      text: `❌ *Unable to Process Product*\n\nSorry, I couldn't fetch the product details.\n\n🔄 *Troubleshooting:*\n• Check if URL is complete and valid\n• Ensure it's from Amazon.in or Flipkart.com\n• Try a direct product page URL\n• Some pages may have anti-bot protection\n\n*Please try another product link!* 📋`,
+      text: `❌ *Unable to Process Flipkart Product*\n\nSorry, I couldn't extract the product details.\n\n🔄 *Troubleshooting:*\n• Ensure the URL is a valid Flipkart product page\n• Check if the product is still available\n• Some pages may have anti-scraping protection\n• Try a direct product page URL\n\n*Please try another Flipkart product link!* 🛒`,
       parse_mode: "Markdown"
     });
   }
 }
 
-async function scrapeProductRobust(url) {
+async function scrapeFlipkartAdvanced(url) {
   try {
-    console.log(`🌐 [v${BOT_VERSION}] Fetching: ${url}`);
+    console.log(`🌐 [v${BOT_VERSION}] Fetching Flipkart page: ${url}`);
     
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
@@ -161,7 +171,8 @@ async function scrapeProductRobust(url) {
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
+        'Upgrade-Insecure-Requests': '1',
+        'Referer': 'https://www.flipkart.com/'
       }
     });
 
@@ -170,139 +181,195 @@ async function scrapeProductRobust(url) {
     }
 
     const html = await response.text();
-    console.log(`📡 [v${BOT_VERSION}] Page loaded: ${html.length} chars`);
+    console.log(`📡 [v${BOT_VERSION}] Flipkart page loaded: ${html.length} chars`);
     
-    const isAmazon = url.includes('amazon.in');
-    const platform = isAmazon ? "Amazon India" : "Flipkart";
+    // Initialize product data structure (as mentioned in video)
+    let productData = {
+      title: "Flipkart Product",
+      actualPrice: "Not available",
+      sellingPrice: "Not available",
+      reviews: "No reviews",
+      ratings: "No ratings",
+      specifications: "Not available",
+      offers: "No offers available",
+      success: false
+    };
 
-    let title = "Product";
-    let price = "Price not available";
-    let foundData = false;
-
-    if (isAmazon) {
-      // Amazon title extraction - multiple methods
-      console.log(`🔍 [v${BOT_VERSION}] Extracting Amazon data...`);
-      
-      // Method 1: Product title span
-      if (!foundData) {
-        const titlePattern = 'id="productTitle"';
-        const titleIndex = html.indexOf(titlePattern);
-        if (titleIndex > -1) {
-          const titleSection = html.substring(titleIndex, titleIndex + 1000);
-          const startTag = titleSection.indexOf('>');
-          const endTag = titleSection.indexOf('</span>');
-          if (startTag > -1 && endTag > startTag) {
-            const extractedTitle = titleSection.substring(startTag + 1, endTag)
-              .replace(/<[^>]*>/g, '')
-              .replace(/\s+/g, ' ')
-              .trim();
-            if (extractedTitle.length > 5) {
-              title = extractedTitle.length > 150 ? extractedTitle.substring(0, 150) + "..." : extractedTitle;
-              foundData = true;
-              console.log(`✅ [v${BOT_VERSION}] Amazon title found: ${title.substring(0, 50)}...`);
-            }
+    // Advanced title extraction using multiple class patterns
+    console.log(`🔍 [v${BOT_VERSION}] Extracting product title...`);
+    const titlePatterns = [
+      'B_NuCI',           // Common product title class
+      '_35KyD6',          // Alternative title class
+      'yhB1nd',           // Another title variant
+      'x-product-title-label',
+      '_4rR01T'           // Mobile specific titles
+    ];
+    
+    for (const pattern of titlePatterns) {
+      const titleIndex = html.indexOf(pattern);
+      if (titleIndex > -1) {
+        const titleSection = html.substring(titleIndex, titleIndex + 1000);
+        const spanStart = titleSection.indexOf('>');
+        const spanEnd = titleSection.indexOf('</span>');
+        if (spanStart > -1 && spanEnd > spanStart) {
+          const extractedTitle = titleSection.substring(spanStart + 1, spanEnd)
+            .replace(/<[^>]*>/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (extractedTitle.length > 5 && !extractedTitle.includes('Flipkart')) {
+            productData.title = extractedTitle.length > 150 ? extractedTitle.substring(0, 150) + "..." : extractedTitle;
+            productData.success = true;
+            console.log(`✅ [v${BOT_VERSION}] Title found: ${productData.title.substring(0, 50)}...`);
+            break;
           }
         }
       }
+    }
 
-      // Method 2: H1 title
-      if (!foundData) {
-        const h1Pattern = '<h1';
-        const h1Index = html.indexOf(h1Pattern);
-        if (h1Index > -1) {
-          const h1Section = html.substring(h1Index, h1Index + 500);
-          const startTag = h1Section.indexOf('>');
-          const endTag = h1Section.indexOf('</h1>');
-          if (startTag > -1 && endTag > startTag) {
-            const extractedTitle = h1Section.substring(startTag + 1, endTag)
-              .replace(/<[^>]*>/g, '')
-              .replace(/\s+/g, ' ')
-              .trim();
-            if (extractedTitle.length > 5 && !extractedTitle.includes('Amazon')) {
-              title = extractedTitle.length > 150 ? extractedTitle.substring(0, 150) + "..." : extractedTitle;
-              foundData = true;
-              console.log(`✅ [v${BOT_VERSION}] Amazon H1 title: ${title.substring(0, 50)}...`);
-            }
-          }
+    // Advanced price extraction - differentiate between actual and selling price
+    console.log(`🔍 [v${BOT_VERSION}] Extracting prices (actual vs selling)...`);
+    
+    // Look for selling price (discounted price)
+    const sellingPricePatterns = ['_30jeq3 _1_WHN1', '_25b18c', '_30jeq3', '_1_WHN1'];
+    for (const pattern of sellingPricePatterns) {
+      const priceIndex = html.indexOf(pattern);
+      if (priceIndex > -1) {
+        const priceSection = html.substring(priceIndex, priceIndex + 200);
+        const priceMatch = priceSection.match(/₹([0-9,]+)/);
+        if (priceMatch && priceMatch[1]) {
+          productData.sellingPrice = priceMatch[1];
+          console.log(`✅ [v${BOT_VERSION}] Selling price: ₹${productData.sellingPrice}`);
+          break;
         }
       }
+    }
 
-      // Amazon price extraction
-      const pricePatterns = ['₹', 'INR', 'Rs'];
-      for (const pattern of pricePatterns) {
-        const priceIndex = html.indexOf(pattern);
-        if (priceIndex > -1) {
-          const priceSection = html.substring(priceIndex, priceIndex + 100);
-          const priceMatch = priceSection.match(/₹[\s]*([0-9,]+)/);
-          if (priceMatch && priceMatch[1]) {
-            price = priceMatch[1];
-            console.log(`✅ [v${BOT_VERSION}] Amazon price: ₹${price}`);
+    // Look for actual price (MRP/original price)
+    const actualPricePatterns = ['_3I9_wc _2p6lqe', '_3auQ3N _2GcJzG', '_3I9_wc'];
+    for (const pattern of actualPricePatterns) {
+      const priceIndex = html.indexOf(pattern);
+      if (priceIndex > -1) {
+        const priceSection = html.substring(priceIndex, priceIndex + 200);
+        const priceMatch = priceSection.match(/₹([0-9,]+)/);
+        if (priceMatch && priceMatch[1]) {
+          productData.actualPrice = priceMatch[1];
+          console.log(`✅ [v${BOT_VERSION}] Actual price: ₹${productData.actualPrice}`);
+          break;
+        }
+      }
+    }
+
+    // Extract reviews and ratings (handle cases with no reviews as mentioned in video)
+    console.log(`🔍 [v${BOT_VERSION}] Extracting reviews and ratings...`);
+    try {
+      // Look for ratings
+      const ratingPatterns = ['_3LWZlK', '_3LWZlK _1BLPMq', 'gUuXy-'];
+      for (const pattern of ratingPatterns) {
+        const ratingIndex = html.indexOf(pattern);
+        if (ratingIndex > -1) {
+          const ratingSection = html.substring(ratingIndex, ratingIndex + 100);
+          const ratingMatch = ratingSection.match(/([0-9]\.[0-9])/);
+          if (ratingMatch) {
+            productData.ratings = ratingMatch[1] + " ⭐";
+            console.log(`✅ [v${BOT_VERSION}] Rating: ${productData.ratings}`);
             break;
           }
         }
       }
 
-    } else {
-      // Flipkart extraction
-      console.log(`🔍 [v${BOT_VERSION}] Extracting Flipkart data...`);
-      
-      // Flipkart title patterns
-      const flipkartTitlePatterns = ['B_NuCI', '_35KyD6', 'product-title'];
-      
-      for (const pattern of flipkartTitlePatterns) {
-        if (!foundData) {
-          const patternIndex = html.indexOf(pattern);
-          if (patternIndex > -1) {
-            const section = html.substring(patternIndex, patternIndex + 800);
-            const spanStart = section.indexOf('>');
-            const spanEnd = section.indexOf('</span>');
-            if (spanStart > -1 && spanEnd > spanStart) {
-              const extractedTitle = section.substring(spanStart + 1, spanEnd)
-                .replace(/<[^>]*>/g, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-              if (extractedTitle.length > 5 && !extractedTitle.includes('Flipkart')) {
-                title = extractedTitle.length > 150 ? extractedTitle.substring(0, 150) + "..." : extractedTitle;
-                foundData = true;
-                console.log(`✅ [v${BOT_VERSION}] Flipkart title: ${title.substring(0, 50)}...`);
-                break;
-              }
-            }
+      // Look for review count
+      const reviewPatterns = ['_2_R_DZ', '_13vcmD', 'row _2afbiS'];
+      for (const pattern of reviewPatterns) {
+        const reviewIndex = html.indexOf(pattern);
+        if (reviewIndex > -1) {
+          const reviewSection = html.substring(reviewIndex, reviewIndex + 300);
+          const reviewMatch = reviewSection.match(/([0-9,]+)\s*(reviews?|ratings?)/i);
+          if (reviewMatch) {
+            productData.reviews = reviewMatch[1] + " reviews";
+            console.log(`✅ [v${BOT_VERSION}] Reviews: ${productData.reviews}`);
+            break;
           }
         }
       }
-
-      // Flipkart price extraction
-      const flipkartPriceMatch = html.match(/₹([0-9,]+)/);
-      if (flipkartPriceMatch) {
-        price = flipkartPriceMatch[1];
-        console.log(`✅ [v${BOT_VERSION}] Flipkart price: ₹${price}`);
-      }
+    } catch (error) {
+      console.log(`⚠️ [v${BOT_VERSION}] Reviews/ratings extraction failed, using defaults`);
     }
 
-    const result = {
-      title: title,
-      price: price,
-      platform: platform,
-      success: foundData || price !== "Price not available",
-      timestamp: new Date().toISOString(),
-      url: url
-    };
+    // Extract specifications (memory, display, etc. as mentioned in video)
+    console.log(`🔍 [v${BOT_VERSION}] Extracting specifications...`);
+    try {
+      const specPatterns = ['_21lJbe', '_1AN87F', 'tVe95H'];
+      for (const pattern of specPatterns) {
+        const specIndex = html.indexOf(pattern);
+        if (specIndex > -1) {
+          const specSection = html.substring(specIndex, specIndex + 500);
+          const specs = [];
+          
+          // Look for common specs
+          if (specSection.includes('GB')) {
+            const memoryMatch = specSection.match(/(\d+\s*GB)/g);
+            if (memoryMatch) specs.push("Memory: " + memoryMatch[0]);
+          }
+          
+          if (specSection.includes('inch') || specSection.includes('"')) {
+            const displayMatch = specSection.match(/(\d+\.?\d*\s*inch|\d+\.?\d*")/);
+            if (displayMatch) specs.push("Display: " + displayMatch[0]);
+          }
 
-    console.log(`🎯 [v${BOT_VERSION}] Final result:`, { 
-      title: result.title.substring(0, 50) + "...", 
-      price: result.price, 
-      success: result.success 
+          if (specs.length > 0) {
+            productData.specifications = specs.join(", ");
+            console.log(`✅ [v${BOT_VERSION}] Specs: ${productData.specifications}`);
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ [v${BOT_VERSION}] Specifications extraction failed`);
+    }
+
+    // Extract offers and discounts (handle cases with no offers as mentioned in video)
+    console.log(`🔍 [v${BOT_VERSION}] Extracting offers...`);
+    try {
+      const offerPatterns = ['_2ZdXDB', '_3tbMfx', '_16FRp0'];
+      for (const pattern of offerPatterns) {
+        const offerIndex = html.indexOf(pattern);
+        if (offerIndex > -1) {
+          const offerSection = html.substring(offerIndex, offerIndex + 300);
+          const offerMatch = offerSection.match(/(₹[0-9,]+\s*off|\d+%\s*off|Bank Offer|Exchange Offer)/i);
+          if (offerMatch) {
+            productData.offers = offerMatch[1];
+            console.log(`✅ [v${BOT_VERSION}] Offer: ${productData.offers}`);
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ [v${BOT_VERSION}] Offers extraction failed`);
+    }
+
+    // Final validation and return
+    productData.timestamp = new Date().toISOString();
+    productData.url = url;
+    
+    console.log(`🎯 [v${BOT_VERSION}] Final Flipkart data:`, {
+      title: productData.title.substring(0, 30) + "...",
+      sellingPrice: productData.sellingPrice,
+      actualPrice: productData.actualPrice,
+      success: productData.success
     });
     
-    return result;
+    return productData;
 
   } catch (error) {
-    console.error(`❌ [v${BOT_VERSION}] Scraping error:`, error);
+    console.error(`❌ [v${BOT_VERSION}] Flipkart scraping error:`, error);
     return {
-      title: "Product",
-      price: "Unable to fetch price",
-      platform: url.includes('amazon.in') ? "Amazon India" : "Flipkart",
+      title: "Flipkart Product",
+      actualPrice: "Unable to fetch",
+      sellingPrice: "Unable to fetch", 
+      reviews: "No reviews",
+      ratings: "No ratings",
+      specifications: "Not available",
+      offers: "No offers available",
       success: false,
       error: error.message,
       timestamp: new Date().toISOString(),
@@ -311,7 +378,7 @@ async function scrapeProductRobust(url) {
   }
 }
 
-function formatProductMessage(productInfo, url) {
+function formatFlipkartMessage(productInfo, url) {
   const timestamp = new Date().toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
     day: '2-digit',
@@ -322,36 +389,61 @@ function formatProductMessage(productInfo, url) {
   });
 
   if (productInfo.success) {
-    return `📦 *Product Successfully Extracted!* ✅
+    // Calculate discount if both prices available
+    let discountInfo = "";
+    if (productInfo.actualPrice !== "Not available" && productInfo.sellingPrice !== "Not available") {
+      try {
+        const actual = parseInt(productInfo.actualPrice.replace(/,/g, ''));
+        const selling = parseInt(productInfo.sellingPrice.replace(/,/g, ''));
+        if (actual > selling) {
+          const discount = Math.round(((actual - selling) / actual) * 100);
+          discountInfo = `\n💸 *Discount:* ${discount}% off (Save ₹${(actual - selling).toLocaleString()})`;
+        }
+      } catch (e) {
+        console.log("Discount calculation failed");
+      }
+    }
+
+    return `🛒 *Flipkart Product Successfully Extracted!* ✅
 
 🏷️ *Product:* ${productInfo.title}
 
-💰 *Current Price:* ₹${productInfo.price}
+💰 *Pricing Details:*
+• *Selling Price:* ₹${productInfo.sellingPrice}
+• *Actual Price:* ₹${productInfo.actualPrice}${discountInfo}
 
-🛒 *Platform:* ${productInfo.platform}
+⭐ *Reviews & Ratings:*
+• *Rating:* ${productInfo.ratings}  
+• *Reviews:* ${productInfo.reviews}
 
-🔗 [View on ${productInfo.platform}](${url})
+📋 *Specifications:* ${productInfo.specifications}
 
-📊 *Status:* Real data extracted successfully
+🎁 *Offers:* ${productInfo.offers}
+
+🔗 [View on Flipkart](${url})
+
+📊 *Status:* Advanced extraction successful
 🕒 *Fetched:* ${timestamp}
 🤖 *Bot:* v${BOT_VERSION}
 
-*Robust price tracking completed!* 📈✨`;
+*Comprehensive Flipkart data extracted!* 📈✨`;
 
   } else {
-    return `⚠️ *Limited Data Retrieved*
+    return `⚠️ *Partial Flipkart Data Retrieved*
 
 🏷️ *Product:* ${productInfo.title}
-💰 *Price:* ${productInfo.price}
-🛒 *Platform:* ${productInfo.platform}
+💰 *Selling Price:* ₹${productInfo.sellingPrice}
+💰 *Actual Price:* ₹${productInfo.actualPrice}
+⭐ *Reviews:* ${productInfo.reviews}
+⭐ *Ratings:* ${productInfo.ratings}
 
-🔗 [View Product](${url})
+🔗 [View Product on Flipkart](${url})
 
-ℹ️ *Note:* Product page may have anti-scraping protection or unusual structure
+ℹ️ *Note:* Some data may be limited due to page structure or anti-scraping measures
 🕒 *Attempted:* ${timestamp}
 🤖 *Bot:* v${BOT_VERSION}
 
-*You can still view the product using the link above!* 📋`;
+*You can still view the complete product on Flipkart!* 🛒`;
   }
 }
 
