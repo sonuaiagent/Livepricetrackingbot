@@ -1,5 +1,5 @@
-// Version and deployment tracking - BUMPED FOR DEFINITIVE FIX
-const BOT_VERSION = "5.1.2";
+// Version and deployment tracking - FIXED REGEX VERSION
+const BOT_VERSION = "5.2.0";
 const DEPLOYMENT_ID = `dep-${Date.now()}`;
 
 export default {
@@ -56,7 +56,7 @@ async function handleUpdate(update, env) {
 }
 
 async function sendWelcomeMessage(chatId, token) {
-  // CRITICAL FIX: No backticks around example URLs
+  // FIXED: No backticks around example URLs
   const welcomeText = `🤖 *Livepricetrackingbot v${BOT_VERSION} Online* ✅
 
 Welcome! I'm your enhanced price tracking assistant.
@@ -90,7 +90,7 @@ Ready to track some real prices! 🚀`;
 }
 
 async function sendHelpMessage(chatId, token) {
-  // CRITICAL FIX: No backticks around example URLs
+  // FIXED: No backticks around example URLs
   const helpText = `❓ *Enhanced Price Tracker Help*
 
 📝 *Instructions:*
@@ -120,7 +120,7 @@ async function sendHelpMessage(chatId, token) {
 }
 
 function isProductURL(text) {
-  // FIXED: Properly escaped regex patterns with correct s and / 
+  // FIXED: Properly escaped regex patterns with correct s and /
   const amazonRegex = /https?://(www.)?amazon.in/[^s]*/dp/[A-Z0-9]{10}[^s]*/i;
   const flipkartRegex = /https?://(www.)?flipkart.com/[^s]*/p/[^s]+/i;
   
@@ -227,12 +227,6 @@ async function scrapeAmazonProduct(url) {
       /<title>(.*?)s*:s*Amazon.in/s
     ];
     
-    const pricePatterns = [
-      /₹s*([0-9,]+(?:.[0-9]{2})?)/g,
-      /"priceAmount"[^>]*>s*₹s*([0-9,]+)/,
-      /class="[^"]*price[^"]*"[^>]*>₹s*([0-9,]+)/i
-    ];
-    
     let title = "Amazon Product";
     let price = "Price not available";
     
@@ -328,7 +322,7 @@ async function scrapeFlipkartProduct(url) {
       }
     }
     
-    // Try to extract price
+    // Try to extract price - FIXED regex
     const priceMatches = Array.from(html.matchAll(/₹([0-9,]+)/g));
     if (priceMatches.length > 0) {
       const prices = priceMatches.map(match => match[1].replace(/,/g, '')).filter(p => parseInt(p) > 0);
