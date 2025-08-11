@@ -1,4 +1,4 @@
 name = "livepricetrackingbot"
-main = "index.js"
+main = "worker.js"
 compatibility_date = "2024-08-10"
 compatibility_flags = ["nodejs_compat"]
