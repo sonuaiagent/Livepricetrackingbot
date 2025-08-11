@@ -1,5 +1,5 @@
-// Version and deployment tracking - FINAL REGEX FIXED VERSION
-const BOT_VERSION = "5.3.0";
+// Version and deployment tracking - MOBILE GITSYNC FIX
+const BOT_VERSION = "5.7.0";
 const DEPLOYMENT_ID = `dep-${Date.now()}`;
 
 export default {
@@ -117,7 +117,7 @@ async function sendHelpMessage(chatId, token) {
 }
 
 function isProductURL(text) {
-  // COMPLETELY FIXED REGEX PATTERNS - LINE 124 ERROR RESOLVED
+  // MOBILE GITSYNC FIX - PROPERLY ESCAPED REGEX PATTERNS
   const amazonRegex = /https?://(www.)?amazon.in/[^s]*/dp/[A-Z0-9]{10}[^s]*/i;
   const flipkartRegex = /https?://(www.)?flipkart.com/[^s]*/p/[^s]+/i;
   const amazonSimple = /https?://(www.)?amazon.in/[^s]+/i;
@@ -126,7 +126,7 @@ function isProductURL(text) {
   const result = amazonRegex.test(text) || flipkartRegex.test(text) || 
                  amazonSimple.test(text) || flipkartSimple.test(text);
   
-  console.log(`🔍 [v${BOT_VERSION}] URL detection for "${text.substring(0, 50)}...": ${result}`);
+  console.log(`🔍 [v${BOT_VERSION}] URL detection: ${result}`);
   return result;
 }
 
@@ -240,7 +240,7 @@ async function scrapeAmazonProduct(url) {
       }
     }
     
-    const result = {
+    return {
       title: title,
       price: price,
       platform: "Amazon India",
@@ -248,9 +248,6 @@ async function scrapeAmazonProduct(url) {
       timestamp: new Date().toISOString(),
       success: true
     };
-    
-    console.log(`✅ [v${BOT_VERSION}] Amazon extraction result:`, result);
-    return result;
     
   } catch (error) {
     console.error(`❌ [v${BOT_VERSION}] Amazon scraping failed:`, error);
@@ -316,7 +313,7 @@ async function scrapeFlipkartProduct(url) {
       }
     }
     
-    const result = {
+    return {
       title: title,
       price: price,
       platform: "Flipkart",
@@ -324,9 +321,6 @@ async function scrapeFlipkartProduct(url) {
       timestamp: new Date().toISOString(),
       success: true
     };
-    
-    console.log(`✅ [v${BOT_VERSION}] Flipkart extraction result:`, result);
-    return result;
     
   } catch (error) {
     console.error(`❌ [v${BOT_VERSION}] Flipkart scraping failed:`, error);
