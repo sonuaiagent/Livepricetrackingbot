@@ -1,5 +1,5 @@
-// Simple Cloudflare Worker - No external dependencies needed
-const BOT_VERSION = "6.0.0-SIMPLE";
+// Final Working Version - Direct Cloudflare Deployment
+const BOT_VERSION = "6.1.0-FINAL";
 
 export default {
   async fetch(request, env) {
@@ -12,7 +12,7 @@ export default {
       return handleUpdate(update, env);
     }
 
-    return new Response(`✅ Livepricetrackingbot v${BOT_VERSION} - Simple Worker Approach!`, { status: 200 });
+    return new Response(`✅ Livepricetrackingbot v${BOT_VERSION} - Working!`, { status: 200 });
   }
 };
 
@@ -25,7 +25,7 @@ async function handleUpdate(update, env) {
     
     if (!chatId) return new Response("ok", { status: 200 });
     
-    console.log(`📨 [v${BOT_VERSION}] Message from user ${userId}: "${messageText}"`);
+    console.log(`📨 Message from user ${userId}: "${messageText}"`);
 
     if (messageText.startsWith('/start')) {
       await sendWelcomeMessage(chatId, env.TG_BOT_TOKEN);
@@ -38,7 +38,7 @@ async function handleUpdate(update, env) {
     return new Response("ok", { status: 200 });
     
   } catch (error) {
-    console.error(`❌ [v${BOT_VERSION}] Error:`, error);
+    console.error(`❌ Error:`, error);
     return new Response("err", { status: 200 });
   }
 }
@@ -52,10 +52,6 @@ Welcome! I'm your price tracking assistant.
 1. Send me an Amazon or Flipkart product link
 2. I'll extract product details and current price
 3. Get real-time price information
-
-🔗 *Supported platforms:*
-• Amazon India (amazon.in)
-• Flipkart (flipkart.com)
 
 ✨ *Example:*
 Just paste: https://www.amazon.in/product-link
@@ -76,13 +72,12 @@ async function sendHelpMessage(chatId, token) {
 📝 *Instructions:*
 • Send me a product URL from Amazon.in or Flipkart.com
 • I'll fetch product title and current price
-• Get formatted product information
 
 🔗 *Supported formats:*
-✅ https://www.amazon.in/product-name/dp/PRODUCT-ID
-✅ https://www.flipkart.com/product-name/p/PRODUCT-ID
+✅ Amazon India URLs
+✅ Flipkart URLs
 
-*Try sending any Amazon or Flipkart product link!* 📊`;
+*Try sending any product link!* 📊`;
 
   await tgSendMessage(token, {
     chat_id: chatId,
@@ -92,22 +87,20 @@ async function sendHelpMessage(chatId, token) {
 }
 
 function isProductURL(text) {
-  // FINALLY FIXED - SIMPLE REGEX WITHOUT BUILD PIPELINE ISSUES
-  const amazonPattern = /https?://(www.)?amazon.in/.*/dp/[A-Z0-9]{10}/i;
-  const flipkartPattern = /https?://(www.)?flipkart.com/.*/p//i;
-  const amazonSimple = /https?://(www.)?amazon.in//i;
-  const flipkartSimple = /https?://(www.)?flipkart.com//i;
+  // COMPLETELY SAFE REGEX - NO COMPLEX PATTERNS
+  const hasAmazon = text.includes('amazon.in');
+  const hasFlipkart = text.includes('flipkart.com');
+  const isHTTP = text.startsWith('http');
   
-  const result = amazonPattern.test(text) || flipkartPattern.test(text) || 
-                 amazonSimple.test(text) || flipkartSimple.test(text);
+  const result = isHTTP && (hasAmazon || hasFlipkart);
   
-  console.log(`🔍 [v${BOT_VERSION}] URL detection: ${result}`);
+  console.log(`🔍 URL detection: ${result}`);
   return result;
 }
 
 async function handleProductURL(chatId, url, token) {
   try {
-    console.log(`🛒 [v${BOT_VERSION}] Processing: ${url}`);
+    console.log(`🛒 Processing: ${url}`);
     
     await tgSendMessage(token, {
       chat_id: chatId,
@@ -117,45 +110,35 @@ Fetching product data! ⏳`,
       parse_mode: "Markdown"
     });
 
-    const isAmazon = url.includes('amazon.in');
-    const isFlipkart = url.includes('flipkart.com');
-    
-    let productInfo;
-    if (isAmazon) {
-      productInfo = await scrapeAmazonProduct(url);
-    } else if (isFlipkart) {
-      productInfo = await scrapeFlipkartProduct(url);
-    } else {
-      throw new Error("URL format not recognized");
-    }
-
+    const productInfo = await scrapeProduct(url);
     const productText = formatProductMessage(productInfo, url);
+    
     await tgSendMessage(token, {
       chat_id: chatId,
       text: productText,
       parse_mode: "Markdown"
     });
 
-    console.log(`✅ [v${BOT_VERSION}] Product sent successfully`);
+    console.log(`✅ Product sent successfully`);
 
   } catch (error) {
-    console.error(`❌ [v${BOT_VERSION}] Error:`, error);
+    console.error(`❌ Error:`, error);
     
     await tgSendMessage(token, {
       chat_id: chatId,
       text: `❌ *Unable to Process Product*
 
-Sorry, I couldn't fetch the product details right now. Please try again with a valid Amazon.in or Flipkart.com product URL.`,
+Sorry, I couldn't fetch the product details. Please try again with a valid product URL.`,
       parse_mode: "Markdown"
     });
   }
 }
 
-async function scrapeAmazonProduct(url) {
+async function scrapeProduct(url) {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
     
@@ -164,14 +147,23 @@ async function scrapeAmazonProduct(url) {
     }
     
     const html = await response.text();
+    const isAmazon = url.includes('amazon.in');
+    const platform = isAmazon ? "Amazon India" : "Flipkart";
     
-    let title = "Amazon Product";
+    let title = `${platform} Product`;
     let price = "Price not available";
     
     // Simple title extraction
-    const titleMatch = html.match(/<span[^>]*id="productTitle"[^>]*>(.*?)</span>/s);
-    if (titleMatch) {
-      title = titleMatch[1].replace(/<[^>]*>/g, '').trim().substring(0, 100);
+    if (isAmazon) {
+      const titleMatch = html.match(/<span[^>]*id="productTitle"[^>]*>([^<]+)</);
+      if (titleMatch) {
+        title = titleMatch[1].trim().substring(0, 100);
+      }
+    } else {
+      const titleMatch = html.match(/<span[^>]*class="[^"]*B_NuCI[^"]*"[^>]*>([^<]+)</);
+      if (titleMatch) {
+        title = titleMatch[1].trim().substring(0, 100);
+      }
     }
     
     // Simple price extraction
@@ -183,61 +175,15 @@ async function scrapeAmazonProduct(url) {
     return {
       title: title,
       price: price,
-      platform: "Amazon India",
+      platform: platform,
       success: true
     };
     
   } catch (error) {
     return {
-      title: "Amazon Product",
+      title: "Product",
       price: "Unable to fetch price",
-      platform: "Amazon India",
-      success: false
-    };
-  }
-}
-
-async function scrapeFlipkartProduct(url) {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const html = await response.text();
-    
-    let title = "Flipkart Product";
-    let price = "Price not available";
-    
-    // Simple title extraction
-    const titleMatch = html.match(/<span[^>]*class="[^"]*B_NuCI[^"]*"[^>]*>(.*?)</span>/s);
-    if (titleMatch) {
-      title = titleMatch[1].replace(/<[^>]*>/g, '').trim().substring(0, 100);
-    }
-    
-    // Simple price extraction
-    const priceMatch = html.match(/₹([0-9,]+)/);
-    if (priceMatch) {
-      price = priceMatch[1];
-    }
-    
-    return {
-      title: title,
-      price: price,
-      platform: "Flipkart",
-      success: true
-    };
-    
-  } catch (error) {
-    return {
-      title: "Flipkart Product",
-      price: "Unable to fetch price",
-      platform: "Flipkart",
+      platform: url.includes('amazon.in') ? "Amazon India" : "Flipkart",
       success: false
     };
   }
