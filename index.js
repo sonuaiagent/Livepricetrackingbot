@@ -1,5 +1,5 @@
 // Version and deployment tracking - BUMPED FOR DEFINITIVE FIX
-const BOT_VERSION = "5.1.1";
+const BOT_VERSION = "5.1.2";
 const DEPLOYMENT_ID = `dep-${Date.now()}`;
 
 export default {
