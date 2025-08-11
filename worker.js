@@ -1,5 +1,5 @@
-// Enhanced Working Version - Improved Product Scraping
-const BOT_VERSION = "6.2.0-ENHANCED";
+// Enhanced Working Version - Robust Product Scraping
+const BOT_VERSION = "6.4.0-ROBUST";
 
 export default {
   async fetch(request, env) {
@@ -12,7 +12,7 @@ export default {
       return handleUpdate(update, env);
     }
 
-    return new Response(`✅ Livepricetrackingbot v${BOT_VERSION} - Enhanced Scraping!`, { status: 200 });
+    return new Response(`✅ Livepricetrackingbot v${BOT_VERSION} - Robust Scraping!`, { status: 200 });
   }
 };
 
@@ -25,7 +25,7 @@ async function handleUpdate(update, env) {
 
     if (!chatId) return new Response("ok", { status: 200 });
 
-    console.log(`📨 Message from user ${userId}: "${messageText}"`);
+    console.log(`📨 [v${BOT_VERSION}] Message from user ${userId}: "${messageText}"`);
 
     if (messageText.startsWith('/start')) {
       await sendWelcomeMessage(chatId, env.TG_BOT_TOKEN);
@@ -38,7 +38,7 @@ async function handleUpdate(update, env) {
     return new Response("ok", { status: 200 });
 
   } catch (error) {
-    console.error(`❌ Error:`, error);
+    console.error(`❌ [v${BOT_VERSION}] Error:`, error);
     return new Response("err", { status: 200 });
   }
 }
@@ -46,28 +46,28 @@ async function handleUpdate(update, env) {
 async function sendWelcomeMessage(chatId, token) {
   const welcomeText = `🤖 *Livepricetrackingbot v${BOT_VERSION} Online* ✅
 
-Welcome! I'm your enhanced price tracking assistant.
+Welcome! I'm your robust price tracking assistant.
 
 📱 *How to use:*
 1. Send me an Amazon or Flipkart product link
-2. I'll extract product details and current price
-3. Get real-time price information
+2. I'll extract real product details and current price
+3. Get comprehensive price information
 
 🔗 *Supported platforms:*
 • Amazon India (amazon.in)
 • Flipkart (flipkart.com)
 
-✨ *Example:*
+✨ *Example URLs:*
 Just paste: https://www.amazon.in/product-link
 Or: https://www.flipkart.com/product-link
 
-🆕 *Enhanced Features:*
-• Better product title extraction
-• Improved price detection
-• More reliable scraping
-• Enhanced error handling
+🆕 *Robust Features:*
+• Advanced product title extraction
+• Multiple price detection methods
+• Real-time scraping with fallbacks
+• Enhanced error handling with details
 
-Ready to track prices! 🚀`;
+Ready to track real prices! 🚀`;
 
   await tgSendMessage(token, {
     chat_id: chatId,
@@ -77,26 +77,20 @@ Ready to track prices! 🚀`;
 }
 
 async function sendHelpMessage(chatId, token) {
-  const helpText = `❓ *Enhanced Price Tracker Help*
+  const helpText = `❓ *Robust Price Tracker Help*
 
 📝 *Instructions:*
 • Send me a product URL from Amazon.in or Flipkart.com
-• I'll fetch real product title and current price
-• Get formatted product information instantly
+• I'll fetch actual product title and current price
+• Get formatted product information with details
 
-🔗 *Supported URL formats:*
+🔗 *Supported formats:*
 ✅ https://www.amazon.in/product-name/dp/PRODUCT-ID
 ✅ https://amazon.in/dp/PRODUCT-ID
 ✅ https://www.flipkart.com/product-name/p/PRODUCT-ID
 ✅ https://flipkart.com/product-name/p/PRODUCT-ID
 
-🆕 *Enhanced capabilities:*
-• Multiple price detection methods
-• Better title extraction
-• Platform identification
-• Detailed product information
-
-*Try sending any Amazon or Flipkart product link!* 📊`;
+*Try sending any real Amazon or Flipkart product link!* 📊`;
 
   await tgSendMessage(token, {
     chat_id: chatId,
@@ -106,31 +100,27 @@ async function sendHelpMessage(chatId, token) {
 }
 
 function isProductURL(text) {
-  // SAFE URL DETECTION - NO COMPLEX REGEX
   const hasAmazon = text.includes('amazon.in');
   const hasFlipkart = text.includes('flipkart.com');
   const isHTTP = text.startsWith('http');
   
-  // Additional validation for better detection
-  const hasProductPath = text.includes('/dp/') || text.includes('/p/');
-  
   const result = isHTTP && (hasAmazon || hasFlipkart);
   
-  console.log(`🔍 URL detection: ${result} | Has product path: ${hasProductPath}`);
+  console.log(`🔍 [v${BOT_VERSION}] URL detection: ${result}`);
   return result;
 }
 
 async function handleProductURL(chatId, url, token) {
   try {
-    console.log(`🛒 Processing: ${url}`);
+    console.log(`🛒 [v${BOT_VERSION}] Processing: ${url}`);
     
     await tgSendMessage(token, {
       chat_id: chatId,
-      text: `🔍 *Processing your product link...*\n\n🚀 Fetching enhanced product data! ⏳`,
+      text: `🔍 *Processing your product link...*\n\n🚀 Extracting real product data! ⏳`,
       parse_mode: "Markdown"
     });
 
-    const productInfo = await scrapeProduct(url);
+    const productInfo = await scrapeProductRobust(url);
     const productText = formatProductMessage(productInfo, url);
     
     await tgSendMessage(token, {
@@ -139,31 +129,38 @@ async function handleProductURL(chatId, url, token) {
       parse_mode: "Markdown"
     });
 
-    console.log(`✅ Product sent successfully: ${productInfo.title}`);
+    console.log(`✅ [v${BOT_VERSION}] Product sent: ${productInfo.title.substring(0, 50)}...`);
 
   } catch (error) {
-    console.error(`❌ Error processing URL:`, error);
+    console.error(`❌ [v${BOT_VERSION}] Error processing:`, error);
     
     await tgSendMessage(token, {
       chat_id: chatId,
-      text: `❌ *Unable to Process Product*\n\nSorry, I couldn't fetch the product details right now.\n\n🔄 *Possible solutions:*\n• Check if the URL is complete and correct\n• Ensure it's from Amazon.in or Flipkart.com\n• Try copying the URL directly from your browser\n• Some products may have restricted access\n\n*Feel free to try another product link!* 📋`,
+      text: `❌ *Unable to Process Product*\n\nSorry, I couldn't fetch the product details.\n\n🔄 *Troubleshooting:*\n• Check if URL is complete and valid\n• Ensure it's from Amazon.in or Flipkart.com\n• Try a direct product page URL\n• Some pages may have anti-bot protection\n\n*Please try another product link!* 📋`,
       parse_mode: "Markdown"
     });
   }
 }
 
-async function scrapeProduct(url) {
+async function scrapeProductRobust(url) {
   try {
-    console.log(`🌐 Fetching product page: ${url}`);
+    console.log(`🌐 [v${BOT_VERSION}] Fetching: ${url}`);
     
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1'
       }
     });
@@ -173,85 +170,113 @@ async function scrapeProduct(url) {
     }
 
     const html = await response.text();
-    console.log(`📡 Page loaded, size: ${html.length} chars`);
+    console.log(`📡 [v${BOT_VERSION}] Page loaded: ${html.length} chars`);
     
     const isAmazon = url.includes('amazon.in');
     const platform = isAmazon ? "Amazon India" : "Flipkart";
 
-    let title = `${platform} Product`;
+    let title = "Product";
     let price = "Price not available";
+    let foundData = false;
 
     if (isAmazon) {
-      // Enhanced Amazon title extraction - AVOIDING COMPLEX REGEX
-      const titlePatterns = [
-        'id="productTitle"',
-        'class="a-size-large',
-        'class="a-spacing-none a-color-base"'
-      ];
+      // Amazon title extraction - multiple methods
+      console.log(`🔍 [v${BOT_VERSION}] Extracting Amazon data...`);
       
-      for (const pattern of titlePatterns) {
-        const startIndex = html.indexOf(pattern);
-        if (startIndex !== -1) {
-          const afterPattern = html.substring(startIndex);
-          const nextClose = afterPattern.indexOf('>');
-          const endTag = afterPattern.indexOf('</');
-          
-          if (nextClose !== -1 && endTag !== -1 && endTag > nextClose) {
-            const extracted = afterPattern.substring(nextClose + 1, endTag);
-            const cleaned = extracted.replace(/\s+/g, ' ').trim();
-            
-            if (cleaned.length > 10 && !cleaned.includes('Amazon')) {
-              title = cleaned.substring(0, 120);
-              if (title.length === 120) title += "...";
-              break;
+      // Method 1: Product title span
+      if (!foundData) {
+        const titlePattern = 'id="productTitle"';
+        const titleIndex = html.indexOf(titlePattern);
+        if (titleIndex > -1) {
+          const titleSection = html.substring(titleIndex, titleIndex + 1000);
+          const startTag = titleSection.indexOf('>');
+          const endTag = titleSection.indexOf('</span>');
+          if (startTag > -1 && endTag > startTag) {
+            const extractedTitle = titleSection.substring(startTag + 1, endTag)
+              .replace(/<[^>]*>/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (extractedTitle.length > 5) {
+              title = extractedTitle.length > 150 ? extractedTitle.substring(0, 150) + "..." : extractedTitle;
+              foundData = true;
+              console.log(`✅ [v${BOT_VERSION}] Amazon title found: ${title.substring(0, 50)}...`);
             }
           }
         }
       }
 
-      // Enhanced Amazon price extraction
-      const priceIndicators = ['₹', 'MRP', 'Price', 'Deal'];
-      for (const indicator of priceIndicators) {
-        const priceIndex = html.indexOf(indicator);
-        if (priceIndex !== -1) {
-          const priceSection = html.substring(priceIndex, priceIndex + 200);
-          // SAFE APPROACH - NO COMPLEX REGEX
-          const numbers = priceSection.match(/₹\s*([0-9,]+)/);
-          if (numbers && numbers[1]) {
-            price = numbers[1];
+      // Method 2: H1 title
+      if (!foundData) {
+        const h1Pattern = '<h1';
+        const h1Index = html.indexOf(h1Pattern);
+        if (h1Index > -1) {
+          const h1Section = html.substring(h1Index, h1Index + 500);
+          const startTag = h1Section.indexOf('>');
+          const endTag = h1Section.indexOf('</h1>');
+          if (startTag > -1 && endTag > startTag) {
+            const extractedTitle = h1Section.substring(startTag + 1, endTag)
+              .replace(/<[^>]*>/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (extractedTitle.length > 5 && !extractedTitle.includes('Amazon')) {
+              title = extractedTitle.length > 150 ? extractedTitle.substring(0, 150) + "..." : extractedTitle;
+              foundData = true;
+              console.log(`✅ [v${BOT_VERSION}] Amazon H1 title: ${title.substring(0, 50)}...`);
+            }
+          }
+        }
+      }
+
+      // Amazon price extraction
+      const pricePatterns = ['₹', 'INR', 'Rs'];
+      for (const pattern of pricePatterns) {
+        const priceIndex = html.indexOf(pattern);
+        if (priceIndex > -1) {
+          const priceSection = html.substring(priceIndex, priceIndex + 100);
+          const priceMatch = priceSection.match(/₹[\s]*([0-9,]+)/);
+          if (priceMatch && priceMatch[1]) {
+            price = priceMatch[1];
+            console.log(`✅ [v${BOT_VERSION}] Amazon price: ₹${price}`);
             break;
           }
         }
       }
 
     } else {
-      // Enhanced Flipkart title extraction
-      const titleKeywords = ['B_NuCI', 'product-title', '_35KyD6'];
+      // Flipkart extraction
+      console.log(`🔍 [v${BOT_VERSION}] Extracting Flipkart data...`);
       
-      for (const keyword of titleKeywords) {
-        const startIndex = html.indexOf(keyword);
-        if (startIndex !== -1) {
-          const section = html.substring(startIndex, startIndex + 500);
-          const spanStart = section.indexOf('>');
-          const spanEnd = section.indexOf('</');
-          
-          if (spanStart !== -1 && spanEnd !== -1 && spanEnd > spanStart) {
-            const extracted = section.substring(spanStart + 1, spanEnd);
-            const cleaned = extracted.replace(/\s+/g, ' ').trim();
-            
-            if (cleaned.length > 10 && !cleaned.includes('Flipkart')) {
-              title = cleaned.substring(0, 120);
-              if (title.length === 120) title += "...";
-              break;
+      // Flipkart title patterns
+      const flipkartTitlePatterns = ['B_NuCI', '_35KyD6', 'product-title'];
+      
+      for (const pattern of flipkartTitlePatterns) {
+        if (!foundData) {
+          const patternIndex = html.indexOf(pattern);
+          if (patternIndex > -1) {
+            const section = html.substring(patternIndex, patternIndex + 800);
+            const spanStart = section.indexOf('>');
+            const spanEnd = section.indexOf('</span>');
+            if (spanStart > -1 && spanEnd > spanStart) {
+              const extractedTitle = section.substring(spanStart + 1, spanEnd)
+                .replace(/<[^>]*>/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (extractedTitle.length > 5 && !extractedTitle.includes('Flipkart')) {
+                title = extractedTitle.length > 150 ? extractedTitle.substring(0, 150) + "..." : extractedTitle;
+                foundData = true;
+                console.log(`✅ [v${BOT_VERSION}] Flipkart title: ${title.substring(0, 50)}...`);
+                break;
+              }
             }
           }
         }
       }
 
-      // Enhanced Flipkart price extraction
-      const priceMatch = html.match(/₹([0-9,]+)/);
-      if (priceMatch) {
-        price = priceMatch[1];
+      // Flipkart price extraction
+      const flipkartPriceMatch = html.match(/₹([0-9,]+)/);
+      if (flipkartPriceMatch) {
+        price = flipkartPriceMatch[1];
+        console.log(`✅ [v${BOT_VERSION}] Flipkart price: ₹${price}`);
       }
     }
 
@@ -259,22 +284,29 @@ async function scrapeProduct(url) {
       title: title,
       price: price,
       platform: platform,
-      success: true,
-      timestamp: new Date().toISOString()
+      success: foundData || price !== "Price not available",
+      timestamp: new Date().toISOString(),
+      url: url
     };
 
-    console.log(`✅ Extraction result:`, result);
+    console.log(`🎯 [v${BOT_VERSION}] Final result:`, { 
+      title: result.title.substring(0, 50) + "...", 
+      price: result.price, 
+      success: result.success 
+    });
+    
     return result;
 
   } catch (error) {
-    console.error(`❌ Scraping failed:`, error);
+    console.error(`❌ [v${BOT_VERSION}] Scraping error:`, error);
     return {
       title: "Product",
       price: "Unable to fetch price",
       platform: url.includes('amazon.in') ? "Amazon India" : "Flipkart",
       success: false,
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      url: url
     };
   }
 }
@@ -290,7 +322,7 @@ function formatProductMessage(productInfo, url) {
   });
 
   if (productInfo.success) {
-    return `📦 *Product Found Successfully!* ✅
+    return `📦 *Product Successfully Extracted!* ✅
 
 🏷️ *Product:* ${productInfo.title}
 
@@ -300,14 +332,14 @@ function formatProductMessage(productInfo, url) {
 
 🔗 [View on ${productInfo.platform}](${url})
 
-📊 *Status:* Live data extracted
+📊 *Status:* Real data extracted successfully
 🕒 *Fetched:* ${timestamp}
 🤖 *Bot:* v${BOT_VERSION}
 
-*Enhanced price tracking data successfully retrieved!* 📈✨`;
+*Robust price tracking completed!* 📈✨`;
 
   } else {
-    return `⚠️ *Partial Data Retrieved*
+    return `⚠️ *Limited Data Retrieved*
 
 🏷️ *Product:* ${productInfo.title}
 💰 *Price:* ${productInfo.price}
@@ -315,8 +347,9 @@ function formatProductMessage(productInfo, url) {
 
 🔗 [View Product](${url})
 
-ℹ️ *Note:* Some data may be limited due to website restrictions
+ℹ️ *Note:* Product page may have anti-scraping protection or unusual structure
 🕒 *Attempted:* ${timestamp}
+🤖 *Bot:* v${BOT_VERSION}
 
 *You can still view the product using the link above!* 📋`;
   }
@@ -324,7 +357,7 @@ function formatProductMessage(productInfo, url) {
 
 async function tgSendMessage(token, payload) {
   if (!token) {
-    console.error(`❌ Bot token missing`);
+    console.error(`❌ [v${BOT_VERSION}] Bot token missing`);
     throw new Error("Bot token not configured");
   }
 
@@ -338,11 +371,11 @@ async function tgSendMessage(token, payload) {
     });
     
     const result = await response.text();
-    console.log(`📨 Telegram response: ${response.status}`);
+    console.log(`📨 [v${BOT_VERSION}] Telegram response: ${response.status}`);
     return result;
     
   } catch (error) {
-    console.error(`❌ Telegram API error:`, error);
+    console.error(`❌ [v${BOT_VERSION}] Telegram API error:`, error);
     throw error;
   }
 }
