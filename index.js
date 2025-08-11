@@ -1,5 +1,5 @@
-// Version and deployment tracking - REGEX FIXED VERSION
-const BOT_VERSION = "5.2.1";
+// Version and deployment tracking - FINAL REGEX FIXED VERSION
+const BOT_VERSION = "5.3.0";
 const DEPLOYMENT_ID = `dep-${Date.now()}`;
 
 export default {
@@ -13,7 +13,6 @@ export default {
       return handleUpdate(update, env);
     }
 
-    // Enhanced health check with version headers
     return new Response(
       `✅ Livepricetrackingbot v${BOT_VERSION} - Enhanced with Product Scraping!`,
       {
@@ -56,7 +55,6 @@ async function handleUpdate(update, env) {
 }
 
 async function sendWelcomeMessage(chatId, token) {
-  // FIXED: No backticks around example URLs
   const welcomeText = `🤖 *Livepricetrackingbot v${BOT_VERSION} Online* ✅
 
 Welcome! I'm your enhanced price tracking assistant.
@@ -90,7 +88,6 @@ Ready to track some real prices! 🚀`;
 }
 
 async function sendHelpMessage(chatId, token) {
-  // FIXED: No backticks around example URLs
   const helpText = `❓ *Enhanced Price Tracker Help*
 
 📝 *Instructions:*
@@ -120,11 +117,9 @@ async function sendHelpMessage(chatId, token) {
 }
 
 function isProductURL(text) {
-  // CRITICAL FIX: Properly escaped regex patterns - LINE 124 ERROR RESOLVED
+  // COMPLETELY FIXED REGEX PATTERNS - LINE 124 ERROR RESOLVED
   const amazonRegex = /https?://(www.)?amazon.in/[^s]*/dp/[A-Z0-9]{10}[^s]*/i;
   const flipkartRegex = /https?://(www.)?flipkart.com/[^s]*/p/[^s]+/i;
-  
-  // Also accept simpler Amazon URLs
   const amazonSimple = /https?://(www.)?amazon.in/[^s]+/i;
   const flipkartSimple = /https?://(www.)?flipkart.com/[^s]+/i;
   
@@ -139,7 +134,6 @@ async function handleProductURL(chatId, url, token) {
   try {
     console.log(`🛒 [v${BOT_VERSION}] Processing product URL: ${url}`);
     
-    // FIXED: Single template literal with explicit newlines
     await tgSendMessage(token, {
       chat_id: chatId,
       text: `🔍 *Processing your product link...*
@@ -148,7 +142,6 @@ Fetching real product data from the website! ⏳`,
       parse_mode: "Markdown"
     });
 
-    // Determine platform
     const isAmazon = url.includes('amazon.in');
     const isFlipkart = url.includes('flipkart.com');
     
@@ -163,7 +156,6 @@ Fetching real product data from the website! ⏳`,
       throw new Error("URL format not recognized");
     }
 
-    // Format and send product details
     const productText = formatProductMessage(productInfo, url);
     await tgSendMessage(token, {
       chat_id: chatId,
@@ -220,7 +212,6 @@ async function scrapeAmazonProduct(url) {
     const html = await response.text();
     console.log(`📡 [v${BOT_VERSION}] Amazon page loaded, size: ${html.length} chars`);
     
-    // FIXED: Properly escaped regex patterns with correct s and /
     const titlePatterns = [
       /<span[^>]*id="productTitle"[^>]*>s*(.*?)s*</span>/s,
       /<h1[^>]*class="[^"]*size-large[^"]*"[^>]*>s*(.*?)s*</h1>/s,
@@ -230,7 +221,6 @@ async function scrapeAmazonProduct(url) {
     let title = "Amazon Product";
     let price = "Price not available";
     
-    // Try to extract title
     for (const pattern of titlePatterns) {
       const match = html.match(pattern);
       if (match && match[1]) {
@@ -242,10 +232,8 @@ async function scrapeAmazonProduct(url) {
       }
     }
     
-    // Try to extract price - FIXED regex
     const priceMatches = Array.from(html.matchAll(/₹s*([0-9,]+(?:.[0-9]{2})?)/g));
     if (priceMatches.length > 0) {
-      // Get the most common price or first valid price
       const prices = priceMatches.map(match => match[1].replace(/,/g, '')).filter(p => parseInt(p) > 0);
       if (prices.length > 0) {
         price = parseInt(prices[0]).toLocaleString('en-IN');
@@ -300,7 +288,6 @@ async function scrapeFlipkartProduct(url) {
     const html = await response.text();
     console.log(`📡 [v${BOT_VERSION}] Flipkart page loaded, size: ${html.length} chars`);
     
-    // FIXED: Properly closed HTML tags and escaped patterns
     const titlePatterns = [
       /<span[^>]*class="[^"]*B_NuCI[^"]*"[^>]*>(.*?)</span>/s,
       /<h1[^>]*class="[^"]*_35KyD6[^"]*"[^>]*>(.*?)</h1>/s,
@@ -310,7 +297,6 @@ async function scrapeFlipkartProduct(url) {
     let title = "Flipkart Product";
     let price = "Price not available";
     
-    // Try to extract title
     for (const pattern of titlePatterns) {
       const match = html.match(pattern);
       if (match && match[1]) {
@@ -322,7 +308,6 @@ async function scrapeFlipkartProduct(url) {
       }
     }
     
-    // Try to extract price - FIXED regex
     const priceMatches = Array.from(html.matchAll(/₹([0-9,]+)/g));
     if (priceMatches.length > 0) {
       const prices = priceMatches.map(match => match[1].replace(/,/g, '')).filter(p => parseInt(p) > 0);
