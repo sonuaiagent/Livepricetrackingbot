@@ -1,5 +1,5 @@
-// Final Working Version - Direct Cloudflare Deploymentt
-const BOT_VERSION = "6.1.0-FINAL";
+// Enhanced Working Version - Cloudflare Deployment
+const BOT_VERSION = "6.2.0-ENHANCED";
 
 export default {
   async fetch(request, env) {
@@ -87,7 +87,7 @@ async function sendHelpMessage(chatId, token) {
 }
 
 function isProductURL(text) {
-  // COMPLETELY SAFE REGEX - NO COMPLEX PATTERNS
+  // Simple and safe URL detection - no complex regex
   const hasAmazon = text.includes('amazon.in');
   const hasFlipkart = text.includes('flipkart.com');
   const isHTTP = text.startsWith('http');
@@ -138,7 +138,16 @@ async function scrapeProduct(url) {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      },
+      cf: {
+        cacheTtl: 300,
+        cacheEverything: false
       }
     });
     
@@ -152,34 +161,29 @@ async function scrapeProduct(url) {
     
     let title = `${platform} Product`;
     let price = "Price not available";
+    let success = false;
     
-    // Simple title extraction
     if (isAmazon) {
-      const titleMatch = html.match(/<span[^>]*id="productTitle"[^>]*>([^<]+)</);
-      if (titleMatch) {
-        title = titleMatch[1].trim().substring(0, 100);
-      }
+      const productData = extractAmazonData(html);
+      title = productData.title || title;
+      price = productData.price || price;
+      success = productData.success;
     } else {
-      const titleMatch = html.match(/<span[^>]*class="[^"]*B_NuCI[^"]*"[^>]*>([^<]+)</);
-      if (titleMatch) {
-        title = titleMatch[1].trim().substring(0, 100);
-      }
-    }
-    
-    // Simple price extraction
-    const priceMatch = html.match(/₹([0-9,]+)/);
-    if (priceMatch) {
-      price = priceMatch[1];
+      const productData = extractFlipkartData(html);
+      title = productData.title || title;
+      price = productData.price || price;
+      success = productData.success;
     }
     
     return {
       title: title,
       price: price,
       platform: platform,
-      success: true
+      success: success
     };
     
   } catch (error) {
+    console.error(`Scraping error: ${error.message}`);
     return {
       title: "Product",
       price: "Unable to fetch price",
@@ -187,6 +191,108 @@ async function scrapeProduct(url) {
       success: false
     };
   }
+}
+
+function extractAmazonData(html) {
+  let title = null;
+  let price = null;
+  let success = false;
+  
+  // Multiple title extraction attempts
+  const titlePatterns = [
+    /<span[^>]*id=["']productTitle["'][^>]*>([^<]+)<\/span>/i,
+    /<h1[^>]*class=[^>]*product-title[^>]*>([^<]+)<\/h1>/i,
+    /<title>([^<]*Amazon\.in[^<]*)<\/title>/i
+  ];
+  
+  for (const pattern of titlePatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      title = match[1].trim()
+        .replace(/\s+/g, ' ')
+        .replace(/Amazon\.in.*/, '')
+        .substring(0, 100);
+      if (title.length > 10) break;
+    }
+  }
+  
+  // Multiple price extraction attempts
+  const pricePatterns = [
+    /₹([0-9,]+(?:\.[0-9]{2})?)/g,
+    /"price":"₹([0-9,]+(?:\.[0-9]{2})?)"/g,
+    /price[^>]*>.*?₹([0-9,]+(?:\.[0-9]{2})?)/gi,
+    /₹\s*([0-9,]+)/g
+  ];
+  
+  const foundPrices = [];
+  for (const pattern of pricePatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const priceValue = match[1].replace(/,/g, '');
+      if (priceValue && !isNaN(priceValue) && parseFloat(priceValue) > 0) {
+        foundPrices.push(match[1]);
+      }
+    }
+  }
+  
+  if (foundPrices.length > 0) {
+    // Take the most common price or first valid price
+    price = foundPrices[0];
+    success = true;
+  }
+  
+  return { title, price, success };
+}
+
+function extractFlipkartData(html) {
+  let title = null;
+  let price = null;
+  let success = false;
+  
+  // Multiple title extraction attempts for Flipkart
+  const titlePatterns = [
+    /<span[^>]*class="[^"]*B_NuCI[^"]*"[^>]*>([^<]+)<\/span>/i,
+    /<h1[^>]*class=[^>]*product[^>]*>([^<]+)<\/h1>/i,
+    /<title>([^<]*Flipkart[^<]*)<\/title>/i,
+    /"name":"([^"]+)"/i
+  ];
+  
+  for (const pattern of titlePatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      title = match[1].trim()
+        .replace(/\s+/g, ' ')
+        .replace(/- Buy.*/, '')
+        .replace(/Flipkart.*/, '')
+        .substring(0, 100);
+      if (title.length > 10) break;
+    }
+  }
+  
+  // Multiple price extraction attempts for Flipkart
+  const pricePatterns = [
+    /₹([0-9,]+(?:\.[0-9]{2})?)/g,
+    /"price":.*?₹([0-9,]+(?:\.[0-9]{2})?)/gi,
+    /class="[^"]*price[^"]*"[^>]*>.*?₹([0-9,]+(?:\.[0-9]{2})?)/gi
+  ];
+  
+  const foundPrices = [];
+  for (const pattern of pricePatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const priceValue = match[1].replace(/,/g, '');
+      if (priceValue && !isNaN(priceValue) && parseFloat(priceValue) > 0) {
+        foundPrices.push(match[1]);
+      }
+    }
+  }
+  
+  if (foundPrices.length > 0) {
+    price = foundPrices[0];
+    success = true;
+  }
+  
+  return { title, price, success };
 }
 
 function formatProductMessage(productInfo, url) {
@@ -198,11 +304,15 @@ function formatProductMessage(productInfo, url) {
     minute: '2-digit'
   });
   
-  return `📦 *Product Found!* ✅
+  const statusEmoji = productInfo.success ? '✅' : '⚠️';
+  const priceText = productInfo.price === "Price not available" ? 
+    "Unable to fetch price" : `₹${productInfo.price}`;
+  
+  return `📦 *Product Found!* ${statusEmoji}
 
 🏷️ *Product:* ${productInfo.title}
 
-💰 *Current Price:* ₹${productInfo.price}
+💰 *Current Price:* ${priceText}
 
 🛒 *Platform:* ${productInfo.platform}
 
@@ -224,6 +334,10 @@ async function tgSendMessage(token, payload) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
   });
+  
+  if (!response.ok) {
+    console.error(`Telegram API error: ${response.status}`);
+  }
   
   return await response.text();
 }
