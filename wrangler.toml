@@ -1,0 +1,4 @@
+name = "livepricetrackingbot"
+main = "worker.js"
+compatibility_date = "2025-08-11"
+compatibility_flags = ["nodejs_compat"]
