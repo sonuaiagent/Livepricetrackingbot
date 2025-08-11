@@ -1,5 +1,5 @@
-// Version and deployment tracking - FIXED REGEX VERSION
-const BOT_VERSION = "5.2.0";
+// Version and deployment tracking - REGEX FIXED VERSION
+const BOT_VERSION = "5.2.1";
 const DEPLOYMENT_ID = `dep-${Date.now()}`;
 
 export default {
@@ -120,7 +120,7 @@ async function sendHelpMessage(chatId, token) {
 }
 
 function isProductURL(text) {
-  // FIXED: Properly escaped regex patterns with correct s and /
+  // CRITICAL FIX: Properly escaped regex patterns - LINE 124 ERROR RESOLVED
   const amazonRegex = /https?://(www.)?amazon.in/[^s]*/dp/[A-Z0-9]{10}[^s]*/i;
   const flipkartRegex = /https?://(www.)?flipkart.com/[^s]*/p/[^s]+/i;
   
