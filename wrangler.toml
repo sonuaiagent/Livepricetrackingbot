@@ -1,6 +1,7 @@
 name = "livepricetrackingbot"
 main = "index.js"
 compatibility_date = "2024-08-10"
+compatibility_flags = ["nodejs_compat"]
 
-[env.production]
-name = "livepricetrackingbot"
+# Remove env.production unless you specifically use multiple environments
+# Only keep the main configuration above for simplicity

@@ -5,12 +5,13 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "deploy": "wrangler deploy"
+    "deploy": "npx wrangler deploy",
+    "dev": "npx wrangler dev"
   },
   "keywords": ["telegram", "bot", "price-tracker", "amazon", "flipkart"],
   "author": "Your Name",
   "license": "MIT",
-  "dependencies": {
-    "wrangler": "^3.0.0"
+  "devDependencies": {
+    "wrangler": "^4.28.1"
   }
 }
