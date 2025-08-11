@@ -1,4 +1,4 @@
-// Final Working Version - Direct Cloudflare Deployment
+// Final Working Version - Direct Cloudflare Deploymentt
 const BOT_VERSION = "6.1.0-FINAL";
 
 export default {
