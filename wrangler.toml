@@ -5,5 +5,3 @@ compatibility_flags = ["nodejs_compat"]
 
 [env.production]
 vars = { ENVIRONMENT = "production" }
-
-# Note: secrets like TG_BOT_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY are securely set via `wrangler secret put` or Cloudflare Dashboard
