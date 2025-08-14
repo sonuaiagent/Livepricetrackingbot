@@ -2,8 +2,8 @@ name: Flipkart Price Monitor
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Every 30 minutes
-  workflow_dispatch:        # Allow manual trigger from GitHub UI
+    - cron: '*/30 * * * *'        # Every 30 minutes
+  workflow_dispatch:              # Manual trigger from GitHub UI
 
 jobs:
   monitor-prices:
@@ -15,12 +15,10 @@ jobs:
         run: |
           sudo timedatectl set-timezone Asia/Kolkata
           echo "Current time: $(date)"
-
       - name: Trigger price monitoring endpoint
         run: |
           echo "🔄 Starting price check at $(date '+%Y-%m-%d %H:%M:%S IST')"
-          response=$(curl -s -w "\n%{http_code}" -X POST "https://livepricetrackingbot.sonuaiagent.workers.dev/cron" \
-            -H "User-Agent: GitHub-Actions-Price-Monitor/1.0")
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://livepricetrackingbot.sonuaiagent.workers.dev/cron" -H "User-Agent: GitHub-Actions-Price-Monitor/1.0")
           
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | head -n -1)
@@ -34,7 +32,6 @@ jobs:
             echo "❌ Price monitoring failed with HTTP code $http_code"
             exit 1
           fi
-      
       - name: Complete job
         if: always()
         run: |
