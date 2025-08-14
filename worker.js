@@ -1,4 +1,4 @@
-const BOT_VERSION = "9.2.0-FAST-RESPONSE";
+const BOT_VERSION = "9.3.0-DEBUG-NUMBERED";
 
 export default {
   async fetch(request, env) {
@@ -8,7 +8,7 @@ export default {
     try {
       if (request.method === "POST" && url.pathname === "/webhook") {
         const update = await request.json().catch(() => ({}));
-        return handleUpdateFast(update, env);
+        return handleUpdateWithDebug(update, env);
       }
       if (request.method === "POST" && url.pathname === "/cron") {
         return handlePriceCheck(env);
@@ -20,12 +20,12 @@ export default {
 
 🚀 Features:
 • Database: Connected to Supabase
+• Debug Mode: Numbered responses enabled
 • Fast Response: < 3 seconds guaranteed
-• Async Processing: Background operations
-• Notifications: Real-time price alerts
+• Tracking: Unlimited products
 
 💡 Endpoints:
-• /webhook - Telegram bot (fast response)
+• /webhook - Telegram bot (debug mode)
 • /cron - Price checking
 • /test - Database test`, { status: 200 });
     } catch (error) {
@@ -50,255 +50,465 @@ Connection: Active`, { status: 200 });
   }
 }
 
-// FAST RESPONSE HANDLER - Responds to Telegram within 3 seconds
-async function handleUpdateFast(update, env) {
+// MAIN DEBUG HANDLER with numbered debug points
+async function handleUpdateWithDebug(update, env) {
   try {
-    console.log("🛎️ Received update:", JSON.stringify(update));
+    console.log("🛎️ DEBUG 01: Received webhook request");
     
-    // Process asynchronously to prevent timeout
-    processUpdateAsync(update, env).catch(error => {
-      console.error("Async processing error:", error);
-    });
-
-    // Return immediate response to Telegram
-    return new Response("ok", { status: 200 });
-  } catch (error) {
-    console.error(`❌ Fast handler error:`, error);
-    return new Response("ok", { status: 200 });
-  }
-}
-
-// ASYNC PROCESSING - Handles the actual bot logic
-async function processUpdateAsync(update, env) {
-  try {
+    // DEBUG 01: Confirm webhook reception
     const msg = update.message || update.callback_query?.message;
-    if (!msg) return;
+    const chatId = msg?.chat?.id;
+    const userId = msg?.from?.id || update.callback_query?.from?.id;
+    const messageText = msg?.text || "";
 
-    const callbackData = update.callback_query?.data;
-    const chatId = msg.chat?.id;
-    const userId = msg.from?.id || update.callback_query?.from?.id;
-    const messageText = msg.text || "";
-
-    if (!chatId) return;
-
-    console.log(`📨 Processing: "${messageText}" from user ${userId}`);
-
-    // Handle different message types
-    if (callbackData) {
-      await handleCallbackQuery(update, env);
-    } else if (messageText.startsWith("/start")) {
-      await sendWelcomeMessage(chatId, env.TG_BOT_TOKEN);
-    } else if (messageText.startsWith("/list")) {
-      await showUserTrackings(chatId, userId, env);
-    } else if (messageText.startsWith("/stats")) {
-      await showBotStats(chatId, env);
-    } else if (isFlipkartURL(messageText)) {
-      await handleFlipkartURLAsync(chatId, messageText, userId, env);
-    } else {
-      await sendHelpMessage(chatId, env.TG_BOT_TOKEN);
+    if (!msg) {
+      console.log("❌ DEBUG 01.1: No message object found");
+      return new Response("ok", { status: 200 });
     }
-  } catch (error) {
-    console.error("Async processing error:", error);
-    if (msg?.chat?.id) {
-      await tgSendMessage(env.TG_BOT_TOKEN, {
-        chat_id: msg.chat.id,
-        text: "❌ Sorry, an error occurred. Please try again."
-      }).catch(() => {});
+
+    if (!chatId) {
+      console.log("❌ DEBUG 01.2: No chat ID found");
+      return new Response("ok", { status: 200 });
     }
-  }
-}
 
-async function handleCallbackQuery(update, env) {
-  const callbackQuery = update.callback_query;
-  const data = callbackQuery?.data;
-  const chatId = callbackQuery?.message?.chat?.id;
+    console.log(`✅ DEBUG 01.3: Valid message - Chat: ${chatId}, User: ${userId}, Text: "${messageText}"`);
 
-  try {
-    if (data?.startsWith("stop_tracking_")) {
-      const trackingId = data.replace("stop_tracking_", "");
-      const success = await stopTracking(trackingId, env);
+    // DEBUG 02: Test immediate bot response capability
+    try {
+      console.log("🔧 DEBUG 02: Testing immediate response capability");
+      const debugResponse = await tgSendMessage(env.TG_BOT_TOKEN, {
+        chat_id: chatId,
+        text: `🔧 DEBUG 02: Bot received your message!\n\nMessage: "${messageText}"\nChat ID: ${chatId}\nUser ID: ${userId}\nBot Version: ${BOT_VERSION}`
+      });
+      console.log("✅ DEBUG 02: Immediate response sent successfully");
+    } catch (error) {
+      console.error("❌ DEBUG 02: Failed to send immediate response:", error);
+      // Try sending a simpler message
+      try {
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: "❌ DEBUG 02.1: Error in immediate response"
+        });
+      } catch (simpleError) {
+        console.error("❌ DEBUG 02.1: Even simple message failed:", simpleError);
+      }
+    }
+
+    // DEBUG 03: Check environment variables
+    try {
+      console.log("🔧 DEBUG 03: Checking environment variables");
+      const hasToken = !!env.TG_BOT_TOKEN;
+      const hasSupabaseUrl = !!env.SUPABASE_URL;
+      const hasSupabaseKey = !!env.SUPABASE_ANON_KEY;
+      
       await tgSendMessage(env.TG_BOT_TOKEN, {
         chat_id: chatId,
-        text: success 
-          ? "🛑 *Tracking Stopped*\n\nYou will no longer receive price alerts for this product."
-          : "❌ *Error stopping tracking*\n\nPlease try again.",
-        parse_mode: "Markdown"
+        text: `🔧 DEBUG 03: Environment Check\n\nBot Token: ${hasToken ? '✅' : '❌'}\nSupabase URL: ${hasSupabaseUrl ? '✅' : '❌'}\nSupabase Key: ${hasSupabaseKey ? '✅' : '❌'}`
       });
-    } else if (data?.startsWith("price_history_")) {
-      const trackingId = data.replace("price_history_", "");
-      await showPriceHistory(chatId, trackingId, env);
-    } else if (data?.startsWith("refresh_price_")) {
-      const trackingId = data.replace("refresh_price_", "");
-      await refreshSinglePrice(chatId, trackingId, env);
+      console.log("✅ DEBUG 03: Environment check completed");
+    } catch (error) {
+      console.error("❌ DEBUG 03: Environment check failed:", error);
     }
 
-    // Answer callback query
-    await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/answerCallbackQuery`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callback_query_id: callbackQuery.id })
-    });
+    // DEBUG 04: Test message type detection
+    try {
+      console.log("🔧 DEBUG 04: Testing message type detection");
+      const callbackData = update.callback_query?.data;
+      let messageType = "unknown";
+      
+      if (callbackData) {
+        messageType = "callback_query";
+      } else if (messageText.startsWith("/start")) {
+        messageType = "/start command";
+      } else if (messageText.startsWith("/list")) {
+        messageType = "/list command";
+      } else if (messageText.startsWith("/stats")) {
+        messageType = "/stats command";
+      } else if (isFlipkartURL(messageText)) {
+        messageType = "flipkart_url";
+      } else {
+        messageType = "other_text";
+      }
+
+      await tgSendMessage(env.TG_BOT_TOKEN, {
+        chat_id: chatId,
+        text: `🔧 DEBUG 04: Message Type Detection\n\nDetected Type: ${messageType}\nMessage Text: "${messageText}"\nHas Callback: ${!!callbackData}`
+      });
+      console.log("✅ DEBUG 04: Message type detection completed");
+    } catch (error) {
+      console.error("❌ DEBUG 04: Message type detection failed:", error);
+    }
+
+    // DEBUG 05: Test callback query handling
+    if (update.callback_query?.data) {
+      try {
+        console.log("🔧 DEBUG 05: Processing callback query");
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: `🔧 DEBUG 05: Callback Query\n\nData: ${update.callback_query.data}\nProcessing...`
+        });
+        await handleCallbackQueryDebug(update, env);
+        return new Response("ok", { status: 200 });
+      } catch (error) {
+        console.error("❌ DEBUG 05: Callback query failed:", error);
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: `❌ DEBUG 05: Callback query error: ${error.message}`
+        });
+      }
+    }
+
+    // DEBUG 06: Process regular commands with individual debug points
+    if (messageText.startsWith("/start")) {
+      try {
+        console.log("🔧 DEBUG 06: Processing /start command");
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: "🔧 DEBUG 06: /start command received, processing..."
+        });
+        await sendWelcomeMessageDebug(chatId, env.TG_BOT_TOKEN);
+      } catch (error) {
+        console.error("❌ DEBUG 06: /start failed:", error);
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: `❌ DEBUG 06: /start error: ${error.message}`
+        });
+      }
+    } else if (messageText.startsWith("/list")) {
+      try {
+        console.log("🔧 DEBUG 07: Processing /list command");
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: "🔧 DEBUG 07: /list command received, checking database..."
+        });
+        await showUserTrackingsDebug(chatId, userId, env);
+      } catch (error) {
+        console.error("❌ DEBUG 07: /list failed:", error);
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: `❌ DEBUG 07: /list error: ${error.message}`
+        });
+      }
+    } else if (messageText.startsWith("/stats")) {
+      try {
+        console.log("🔧 DEBUG 08: Processing /stats command");
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: "🔧 DEBUG 08: /stats command received, fetching statistics..."
+        });
+        await showBotStatsDebug(chatId, env);
+      } catch (error) {
+        console.error("❌ DEBUG 08: /stats failed:", error);
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: `❌ DEBUG 08: /stats error: ${error.message}`
+        });
+      }
+    } else if (isFlipkartURL(messageText)) {
+      try {
+        console.log("🔧 DEBUG 09: Processing Flipkart URL");
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: "🔧 DEBUG 09: Flipkart URL detected, starting processing..."
+        });
+        await handleFlipkartURLDebug(chatId, messageText, userId, env);
+      } catch (error) {
+        console.error("❌ DEBUG 09: Flipkart URL failed:", error);
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: `❌ DEBUG 09: Flipkart URL error: ${error.message}`
+        });
+      }
+    } else {
+      try {
+        console.log("🔧 DEBUG 10: Processing unknown message, sending help");
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: "🔧 DEBUG 10: Unknown message type, sending help..."
+        });
+        await sendHelpMessageDebug(chatId, env.TG_BOT_TOKEN);
+      } catch (error) {
+        console.error("❌ DEBUG 10: Help message failed:", error);
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: chatId,
+          text: `❌ DEBUG 10: Help message error: ${error.message}`
+        });
+      }
+    }
+
+    // DEBUG 11: Final completion
+    try {
+      console.log("✅ DEBUG 11: All processing completed successfully");
+      await tgSendMessage(env.TG_BOT_TOKEN, {
+        chat_id: chatId,
+        text: "✅ DEBUG 11: Processing completed successfully!"
+      });
+    } catch (error) {
+      console.error("❌ DEBUG 11: Final message failed:", error);
+    }
+
+    return new Response("ok", { status: 200 });
   } catch (error) {
-    console.error("Callback query error:", error);
+    console.error(`❌ CRITICAL ERROR in handleUpdateWithDebug:`, error);
+    try {
+      if (update.message?.chat?.id) {
+        await tgSendMessage(env.TG_BOT_TOKEN, {
+          chat_id: update.message.chat.id,
+          text: `❌ CRITICAL ERROR: ${error.message}`
+        });
+      }
+    } catch (sendError) {
+      console.error("Failed to send critical error message:", sendError);
+    }
+    return new Response("error", { status: 200 });
   }
 }
 
-async function handleFlipkartURLAsync(chatId, url, userId, env) {
+// DEBUG COMMAND HANDLERS with individual error tracking
+
+async function sendWelcomeMessageDebug(chatId, token) {
   try {
-    // Send processing message
-    await tgSendMessage(env.TG_BOT_TOKEN, {
+    console.log("🔧 DEBUG 06.1: Preparing welcome message");
+    const welcomeText = `🤖 *Advanced Flipkart Price Tracker v${BOT_VERSION}* ✅
+
+🔧 **DEBUG MODE ACTIVE**
+
+Welcome! I'm your intelligent Flipkart price tracking assistant.
+
+🚀 **Features:**
+• **24/7 Price Monitoring**
+• **Instant Notifications**
+• **Price History Tracking**
+• **Interactive Management**
+• **Debug Mode for Testing**
+
+📱 **Commands:**
+• Send Flipkart URL → Start tracking
+• /list → View tracked products
+• /stats → Bot statistics
+
+Ready to track prices! 💰`;
+
+    await tgSendMessage(token, {
       chat_id: chatId,
-      text: "🔍 *Processing Flipkart product...*\n\nExtracting product details...",
+      text: welcomeText,
       parse_mode: "Markdown"
     });
+    console.log("✅ DEBUG 06.1: Welcome message sent successfully");
+  } catch (error) {
+    console.error("❌ DEBUG 06.1: Welcome message failed:", error);
+    await tgSendMessage(token, {
+      chat_id: chatId,
+      text: `❌ DEBUG 06.1: Welcome error: ${error.message}`
+    });
+  }
+}
 
-    // Check if already tracking
+async function showUserTrackingsDebug(chatId, userId, env) {
+  try {
+    console.log("🔧 DEBUG 07.1: Querying user trackings from database");
+    const { data: trackings, error } = await supabaseQuery(env, "product_tracking", "GET", null, 
+      `user_id=eq.${userId}&active=eq.true&order=created_at.desc`);
+    
+    if (error) {
+      throw new Error(`Database error: ${JSON.stringify(error)}`);
+    }
+
+    console.log("✅ DEBUG 07.1: Database query successful");
+    
+    if (!trackings || trackings.length === 0) {
+      await tgSendMessage(env.TG_BOT_TOKEN, {
+        chat_id: chatId,
+        text: "✅ DEBUG 07.2: No tracked products found\n\n📊 *Your Tracked Products*\n\nYou haven't tracked any products yet.\n\nSend me any Flipkart product link to start tracking!",
+        parse_mode: "Markdown"
+      });
+      return;
+    }
+    
+    let listText = `✅ DEBUG 07.3: Found ${trackings.length} tracked products\n\n📊 *Your Tracked Products*\n\n`;
+    
+    trackings.forEach((tracking, index) => {
+      const title = tracking.product_title?.length > 40 ? 
+        tracking.product_title.substring(0, 40) + "..." : tracking.product_title;
+      
+      listText += `${index + 1}. **${title}**\n`;
+      listText += `   💰 Current: ₹${tracking.current_price?.toLocaleString() || 'N/A'}\n`;
+      listText += `   🆔 ID: \`${tracking.tracking_id}\`\n\n`;
+    });
+    
+    await tgSendMessage(env.TG_BOT_TOKEN, {
+      chat_id: chatId,
+      text: listText,
+      parse_mode: "Markdown"
+    });
+    console.log("✅ DEBUG 07.3: User trackings sent successfully");
+  } catch (error) {
+    console.error("❌ DEBUG 07: User trackings failed:", error);
+    await tgSendMessage(env.TG_BOT_TOKEN, {
+      chat_id: chatId,
+      text: `❌ DEBUG 07: Error fetching trackings: ${error.message}`,
+      parse_mode: "Markdown"
+    });
+  }
+}
+
+async function showBotStatsDebug(chatId, env) {
+  try {
+    console.log("🔧 DEBUG 08.1: Fetching bot statistics");
+    const { data: totalTracking } = await supabaseQuery(env, "product_tracking", "GET", null, "active=eq.true");
+    const { data: priceChanges } = await supabaseQuery(env, "price_history", "GET", null, "limit=100");
+    
+    const uniqueUsers = new Set(totalTracking?.map(t => t.user_id)).size || 0;
+    
+    const statsText = `✅ DEBUG 08.1: Statistics fetched successfully
+
+📊 *Bot Statistics*
+
+🔍 **Active Trackings:** ${totalTracking?.length || 0}
+👥 **Total Users:** ${uniqueUsers}
+📈 **Price Changes:** ${priceChanges?.length || 0}
+🤖 **Version:** ${BOT_VERSION}
+
+⚡ **Status:** Debug mode active`;
+    
+    await tgSendMessage(env.TG_BOT_TOKEN, {
+      chat_id: chatId,
+      text: statsText,
+      parse_mode: "Markdown"
+    });
+    console.log("✅ DEBUG 08.1: Bot stats sent successfully");
+  } catch (error) {
+    console.error("❌ DEBUG 08: Bot stats failed:", error);
+    await tgSendMessage(env.TG_BOT_TOKEN, {
+      chat_id: chatId,
+      text: `❌ DEBUG 08: Stats error: ${error.message}`,
+      parse_mode: "Markdown"
+    });
+  }
+}
+
+async function handleFlipkartURLDebug(chatId, url, userId, env) {
+  try {
+    console.log("🔧 DEBUG 09.1: Validating Flipkart URL");
+    if (!isFlipkartURL(url)) {
+      await tgSendMessage(env.TG_BOT_TOKEN, {
+        chat_id: chatId,
+        text: "❌ DEBUG 09.1: Invalid Flipkart URL format"
+      });
+      return;
+    }
+
+    console.log("🔧 DEBUG 09.2: Checking for existing tracking");
     const existing = await checkExistingTracking(userId, url, env);
     if (existing) {
       await tgSendMessage(env.TG_BOT_TOKEN, {
         chat_id: chatId,
-        text: `⚠️ *Already Tracking*\n\n🆔 Tracking ID: \`${existing.tracking_id}\`\n\nUse /list to see all tracked products.`,
+        text: `⚠️ DEBUG 09.2: Product already tracked\n\n🆔 Tracking ID: \`${existing.tracking_id}\``,
         parse_mode: "Markdown"
       });
       return;
     }
 
-    // Scrape product
+    console.log("🔧 DEBUG 09.3: Starting product scraping");
+    await tgSendMessage(env.TG_BOT_TOKEN, {
+      chat_id: chatId,
+      text: "🔧 DEBUG 09.3: Scraping Flipkart product page..."
+    });
+
     const productInfo = await scrapeFlipkartAdvanced(url);
     
     if (!productInfo.success) {
       await tgSendMessage(env.TG_BOT_TOKEN, {
         chat_id: chatId,
-        text: "❌ *Unable to extract product details*\n\nPlease check the URL and try again.",
-        parse_mode: "Markdown"
+        text: `❌ DEBUG 09.3: Scraping failed\n\nError: ${productInfo.error || 'Unknown error'}`
       });
       return;
     }
 
-    // Save to database
+    console.log("🔧 DEBUG 09.4: Saving to database");
     const trackingId = await saveProductTracking(userId, chatId, url, productInfo, env);
 
-    // Create keyboard
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: "✅ Buy Now", url: url },
-          { text: "🛑 Stop Tracking", callback_data: `stop_tracking_${trackingId}` }
-        ],
-        [
-          { text: "📊 Price History", callback_data: `price_history_${trackingId}` },
-          { text: "🔄 Refresh Price", callback_data: `refresh_price_${trackingId}` }
-        ]
-      ]
-    };
-
-    // Send product message
+    console.log("🔧 DEBUG 09.5: Sending success message");
     await tgSendMessage(env.TG_BOT_TOKEN, {
       chat_id: chatId,
-      text: formatAdvancedProductMessage(productInfo, trackingId),
-      parse_mode: "Markdown",
-      reply_markup: JSON.stringify(keyboard)
-    });
+      text: `✅ DEBUG 09.5: Product tracked successfully!
 
-    // Send confirmation
-    await tgSendMessage(env.TG_BOT_TOKEN, {
-      chat_id: chatId,
-      text: "✅ *The Product has Started Tracking!*\n\nNow you can sit back and relax! I will send you an alert when the price of this product changes!",
+📦 **Product:** ${productInfo.title}
+💰 **Price:** ₹${productInfo.sellingPrice}
+🆔 **Tracking ID:** \`${trackingId}\`
+
+Product is now being monitored for price changes!`,
       parse_mode: "Markdown"
     });
-
+    console.log("✅ DEBUG 09.5: Flipkart URL processing completed");
   } catch (error) {
-    console.error("Flipkart processing error:", error);
+    console.error("❌ DEBUG 09: Flipkart URL processing failed:", error);
     await tgSendMessage(env.TG_BOT_TOKEN, {
       chat_id: chatId,
-      text: "❌ *Error processing Flipkart URL*\n\nPlease try again later.",
-      parse_mode: "Markdown"
+      text: `❌ DEBUG 09: Flipkart processing error: ${error.message}`
     });
   }
 }
 
-async function scrapeFlipkartAdvanced(url) {
+async function sendHelpMessageDebug(chatId, token) {
   try {
-    console.log(`🌐 Fetching: ${url}`);
+    console.log("🔧 DEBUG 10.1: Sending help message");
+    const helpText = `✅ DEBUG 10.1: Help message
 
-    const userAgents = [
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15"
-    ];
-    const ua = userAgents[Math.floor(Math.random() * userAgents.length)];
+❓ **Price Tracker Help**
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": ua,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "no-cache",
-        "Referer": "https://www.flipkart.com/"
-      }
+📝 **What I can do:**
+• Track Flipkart products automatically
+• Send price change notifications
+• Keep price history
+
+🔗 **How to use:**
+• Send any Flipkart product URL
+• Use /list to see tracked products
+• Use /stats for bot statistics
+
+**Send me a Flipkart link to start!** 🛒`;
+
+    await tgSendMessage(token, {
+      chat_id: chatId,
+      text: helpText,
+      parse_mode: "Markdown"
+    });
+    console.log("✅ DEBUG 10.1: Help message sent successfully");
+  } catch (error) {
+    console.error("❌ DEBUG 10.1: Help message failed:", error);
+    await tgSendMessage(token, {
+      chat_id: chatId,
+      text: `❌ DEBUG 10.1: Help error: ${error.message}`
+    });
+  }
+}
+
+async function handleCallbackQueryDebug(update, env) {
+  try {
+    console.log("🔧 DEBUG 05.1: Processing callback query");
+    const data = update.callback_query?.data;
+    const chatId = update.callback_query?.message?.chat?.id;
+
+    await tgSendMessage(env.TG_BOT_TOKEN, {
+      chat_id: chatId,
+      text: `✅ DEBUG 05.1: Callback processed\n\nData: ${data}`
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const html = await response.text();
-    console.log(`📡 Page loaded: ${html.length} chars`);
-
-    let title = extractTitle(html) || "Flipkart Product";
-    let price = extractPrice(html) || "Not available";
-
-    return {
-      title: title.length > 120 ? title.substring(0, 120) + "..." : title,
-      sellingPrice: price,
-      success: true,
-      timestamp: new Date().toISOString(),
-      url: url
-    };
-
+    // Answer callback query
+    await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: update.callback_query.id })
+    });
+    console.log("✅ DEBUG 05.1: Callback query completed");
   } catch (error) {
-    console.error(`Scraping error: ${error.message}`);
-    return {
-      title: "Flipkart Product",
-      sellingPrice: "Not available",
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      url: url
-    };
+    console.error("❌ DEBUG 05.1: Callback query failed:", error);
   }
 }
 
-function extractTitle(html) {
-  const patterns = ['B_NuCI', '_35KyD6', 'yhB1nd', '_4rR01T'];
-  for (const pattern of patterns) {
-    const match = html.match(new RegExp(`class="${pattern}"[^>]*>([^<]+)<\/span>`));
-    if (match && match[1] && match[1].trim().length > 5) {
-      return match[1].trim();
-    }
-  }
-  return null;
-}
+// UTILITY FUNCTIONS (unchanged but with error handling)
 
-function extractPrice(html) {
-  const pricePatterns = [
-    /₹([0-9,]+)/,
-    /_30jeq3[^>]*>₹([\d,]+)/,
-    /"price":"₹([0-9,]+)"/
-  ];
-  
-  for (const pattern of pricePatterns) {
-    const match = html.match(pattern);
-    if (match && match[1]) {
-      const price = match[1].replace(/,/g, '');
-      if (!isNaN(price) && parseInt(price) > 0) {
-        return match[1];
-      }
-    }
-  }
-  return null;
-}
-
-// Database and utility functions
 async function supabaseQuery(env, table, method, data = null, params = "") {
   const url = `${env.SUPABASE_URL}/rest/v1/${table}${params ? "?" + params : ""}`;
   const options = {
@@ -330,7 +540,9 @@ async function supabaseQuery(env, table, method, data = null, params = "") {
 }
 
 async function tgSendMessage(token, payload) {
-  if (!token) throw new Error("Bot token not configured");
+  if (!token) {
+    throw new Error("Bot token not configured");
+  }
   
   const api = `https://api.telegram.org/bot${token}/sendMessage`;
   
@@ -344,6 +556,7 @@ async function tgSendMessage(token, payload) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Telegram API error: ${response.status} - ${errorText}`);
+      throw new Error(`Telegram API error: ${response.status}`);
     }
     
     return await response.text();
@@ -354,7 +567,7 @@ async function tgSendMessage(token, payload) {
 }
 
 function isFlipkartURL(text) {
-  return text && text.startsWith("http") && text.includes("flipkart.com");
+  return text && typeof text === 'string' && text.startsWith("http") && text.includes("flipkart.com");
 }
 
 function generateTrackingId() {
@@ -367,39 +580,6 @@ function parsePrice(priceString) {
   return parseInt(cleaned) || 0;
 }
 
-function formatAdvancedProductMessage(productInfo, trackingId) {
-  const timestamp = new Date().toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-  
-  const priceText = productInfo.sellingPrice === "Not available" ? 
-    "Unable to fetch price" : `₹${productInfo.sellingPrice}`;
-  
-  return `📦 *Product Successfully Added to Tracking!* ✅
-
-🏷️ **Product:** ${productInfo.title}
-
-💰 **Current Price:** ${priceText}
-
-🛒 **Platform:** Flipkart India
-
-🆔 **Tracking ID:** \`${trackingId}\`
-
-📊 **Status:** Now monitoring for price changes
-🔔 **Alerts:** You'll get notified when price changes
-
-🕒 **Started:** ${timestamp}
-🤖 **Bot:** v${BOT_VERSION}
-
-*Use the buttons below to manage this product* 👇`;
-}
-
-// Additional required functions
 async function saveProductTracking(userId, chatId, url, productInfo, env) {
   const trackingId = generateTrackingId();
   const currentPrice = parsePrice(productInfo.sellingPrice);
@@ -432,98 +612,63 @@ async function checkExistingTracking(userId, url, env) {
   return data[0];
 }
 
-async function stopTracking(trackingId, env) {
-  const { data, error } = await supabaseQuery(env, "product_tracking", "PATCH", 
-    { active: false }, `tracking_id=eq.${trackingId}`);
-  return !error;
-}
-
-async function showUserTrackings(chatId, userId, env) {
-  const { data: trackings, error } = await supabaseQuery(env, "product_tracking", "GET", null, 
-    `user_id=eq.${userId}&active=eq.true&order=created_at.desc`);
-  
-  if (error || !trackings || trackings.length === 0) {
-    await tgSendMessage(env.TG_BOT_TOKEN, {
-      chat_id: chatId,
-      text: "📊 *Your Tracked Products*\n\nYou haven't tracked any products yet.\n\nSend me any Flipkart product link to start tracking!",
-      parse_mode: "Markdown"
-    });
-    return;
-  }
-  
-  let listText = `📊 *Your Tracked Products* (${trackings.length})\n\n`;
-  
-  trackings.forEach((tracking, index) => {
-    const title = tracking.product_title.length > 40 ? 
-      tracking.product_title.substring(0, 40) + "..." : tracking.product_title;
-    
-    listText += `${index + 1}. **${title}**\n`;
-    listText += `   💰 Current: ₹${tracking.current_price.toLocaleString()}\n`;
-    listText += `   🆔 ID: \`${tracking.tracking_id}\`\n\n`;
-  });
-  
-  await tgSendMessage(env.TG_BOT_TOKEN, {
-    chat_id: chatId,
-    text: listText,
-    parse_mode: "Markdown"
-  });
-}
-
-async function showBotStats(chatId, env) {
+async function scrapeFlipkartAdvanced(url) {
   try {
-    const { data: totalTracking } = await supabaseQuery(env, "product_tracking", "GET", null, "active=eq.true");
-    const { data: priceChanges } = await supabaseQuery(env, "price_history", "GET", null, "limit=100");
-    
-    const uniqueUsers = new Set(totalTracking?.map(t => t.user_id)).size || 0;
-    
-    const statsText = `📊 *Bot Statistics*\n\n🔍 **Active Trackings:** ${totalTracking?.length || 0}\n👥 **Total Users:** ${uniqueUsers}\n📈 **Price Changes:** ${priceChanges?.length || 0}\n🤖 **Version:** ${BOT_VERSION}\n\n⚡ **Status:** Fully operational`;
-    
-    await tgSendMessage(env.TG_BOT_TOKEN, {
-      chat_id: chatId,
-      text: statsText,
-      parse_mode: "Markdown"
+    const userAgents = [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15"
+    ];
+    const ua = userAgents[Math.floor(Math.random() * userAgents.length)];
+
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": ua,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Referer": "https://www.flipkart.com/"
+      }
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const html = await response.text();
+    
+    let title = "Flipkart Product";
+    let price = "Not available";
+    
+    // Basic title extraction
+    const titleMatch = html.match(/class="B_NuCI"[^>]*>([^<]+)<\/span>/);
+    if (titleMatch) {
+      title = titleMatch[1].trim();
+    }
+    
+    // Basic price extraction
+    const priceMatch = html.match(/₹([0-9,]+)/);
+    if (priceMatch) {
+      price = priceMatch[1];
+    }
+
+    return {
+      title: title.length > 120 ? title.substring(0, 120) + "..." : title,
+      sellingPrice: price,
+      success: true,
+      timestamp: new Date().toISOString(),
+      url: url
+    };
+
   } catch (error) {
-    await tgSendMessage(env.TG_BOT_TOKEN, {
-      chat_id: chatId,
-      text: "📊 *Bot Statistics*\n\nUnable to fetch stats at the moment.",
-      parse_mode: "Markdown"
-    });
+    return {
+      title: "Flipkart Product",
+      sellingPrice: "Not available",
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      url: url
+    };
   }
-}
-
-async function showPriceHistory(chatId, trackingId, env) {
-  const { data, error } = await supabaseQuery(env, "price_history", "GET", null, 
-    `tracking_id=eq.${trackingId}&order=recorded_at.desc&limit=15`);
-  
-  if (error || !data || data.length === 0) {
-    await tgSendMessage(env.TG_BOT_TOKEN, {
-      chat_id: chatId,
-      text: "📊 *Price History*\n\nNo price history available yet.",
-      parse_mode: "Markdown"
-    });
-    return;
-  }
-  
-  let historyText = "📊 *Price History* (Last 15 Records)\n\n";
-  data.forEach((record, index) => {
-    const date = new Date(record.recorded_at).toLocaleDateString("en-IN");
-    historyText += `${index + 1}. ₹${record.price.toLocaleString()} - ${date}\n`;
-  });
-  
-  await tgSendMessage(env.TG_BOT_TOKEN, {
-    chat_id: chatId,
-    text: historyText,
-    parse_mode: "Markdown"
-  });
-}
-
-async function refreshSinglePrice(chatId, trackingId, env) {
-  await tgSendMessage(env.TG_BOT_TOKEN, {
-    chat_id: chatId,
-    text: "🔄 *Refreshing price...*\n\nFetching latest data!",
-    parse_mode: "Markdown"
-  });
 }
 
 async function handlePriceCheck(env) {
@@ -533,56 +678,4 @@ async function handlePriceCheck(env) {
   } catch (error) {
     return new Response("Price check failed", { status: 500 });
   }
-}
-
-async function sendWelcomeMessage(chatId, token) {
-  const welcomeText = `🤖 *Advanced Flipkart Price Tracker v${BOT_VERSION}* ✅
-
-Welcome! I'm your intelligent Flipkart price tracking assistant.
-
-🚀 **Enhanced Features:**
-• **24/7 Price Monitoring** - Continuous automated tracking
-• **Instant Notifications** - Real-time price change alerts  
-• **Price History** - Track trends over time
-• **Interactive Management** - Easy control with buttons
-• **Fast Response** - No more timeout issues
-
-📱 **How to use:**
-1. Send me any Flipkart product link
-2. I'll start tracking it automatically  
-3. Get instant alerts when prices change
-
-💡 **Commands:**
-• Send Flipkart URL → Start tracking
-• /list → View tracked products
-• /stats → Bot statistics
-
-Ready to save money! 💰🛒`;
-
-  await tgSendMessage(token, {
-    chat_id: chatId,
-    text: welcomeText,
-    parse_mode: "Markdown"
-  });
-}
-
-async function sendHelpMessage(chatId, token) {
-  const helpText = `❓ **Price Tracker Help**
-
-📝 **What I can do:**
-• Track ANY Flipkart product automatically
-• Send notifications when prices change
-• Keep price history for analysis
-
-🔗 **Supported:**
-✅ All Flipkart product pages
-✅ Electronics, Fashion, Books, etc.
-
-**Send me a Flipkart link to start!** 🛒`;
-
-  await tgSendMessage(token, {
-    chat_id: chatId,
-    text: helpText,
-    parse_mode: "Markdown"
-  });
 }
