@@ -6,11 +6,4 @@ compatibility_flags = ["nodejs_compat"]
 [env.production]
 vars = { ENVIRONMENT = "production" }
 
-# Secrets (set via CLI)
-# TG_BOT_TOKEN = "your-bot-token"
-# SUPABASE_URL = "https://mhjqtkocptxlwahhqwvq.supabase.co"  
-# SUPABASE_ANON_KEY = "your-supabase-key"
-
-# Optional: Cron triggers (limited free tier)
-# [triggers]
-# crons = ["*/30 * * * *"]  # Every 30 minutes
+# Note: secrets like TG_BOT_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY are securely set via `wrangler secret put` or Cloudflare Dashboard
