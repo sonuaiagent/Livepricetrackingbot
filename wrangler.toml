@@ -1,7 +1,9 @@
-name = "livepricetrackingbot"
+name = "livepricetrackingbot-worker"
 main = "worker.js"
-compatibility_date = "2024-08-11"
-compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2025-08-15"
 
-[env.production]
-vars = { ENVIRONMENT = "production" }
+[vars]
+TG_BOT_TOKEN      = "7948442294:AAGa8EC4SQ0UfYnJsBE5P3jyW0lIXA4ldHo"
+AWS_LAMBDA_URL    = "https://woevhjnzydtpou2nmlugq5j2ee0hvzas.lambda-url.eu-north-1.on.aws/"
+SUPABASE_URL      = "https://mhjqtkocptxlwahhqwvq.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1oanF0a29jcHR4bHdhaGhxd3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5ODU5MjksImV4cCI6MjA3MDU2MTkyOX0.XisBP9it0iHWm4X4e6_thf7x8MP7-q6Xr-xFxvlwAHs"
