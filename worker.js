@@ -1,6 +1,9 @@
-const BOT_VERSION = "10.0.0-LAMBDA-Debug";
-const HEALTH_PATH = "/health";
+const BOT_VERSION = "10.0.0-LAMBDA-Prod";
 const WEBHOOK_PATH = "/webhook";
+
+function isFlipkartUrl(txt) {
+  return txt && txt.startsWith("http") && txt.includes("flipkart.com");
+}
 
 async function callLambda(env, body) {
   try {
@@ -11,7 +14,7 @@ async function callLambda(env, body) {
     });
     return await res.json();
   } catch (e) {
-    return { error: "DBG-01E " + e.message, debug: [] };
+    return { error: "Lambda fetch error: " + e.message, debug: [] };
   }
 }
 
@@ -23,16 +26,9 @@ async function tgSend(token, payload) {
   });
 }
 
-function isFlipkartUrl(txt) {
-  return !!(txt && txt.startsWith("http") && txt.includes("flipkart.com"));
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === HEALTH_PATH) {
-      return new Response("Health OK " + BOT_VERSION, { status: 200 });
-    }
     if (request.method === "POST" && url.pathname === WEBHOOK_PATH) {
       let update;
       try { update = await request.json(); } catch (e) {
@@ -52,32 +48,27 @@ async function handleUpdate(update, env) {
 
     if (!chatId) return new Response("No chat id", { status: 200 });
 
-    if (text.startsWith("/start")) {
-      await tgSend(env.TG_BOT_TOKEN, {
-        chat_id: chatId,
-        text: "Welcome! Send me Flipkart product URLs to track prices."
-      });
-    } else if (isFlipkartUrl(text)) {
+    if (isFlipkartUrl(text)) {
+      // Call Lambda with correct payload:
       await tgSend(env.TG_BOT_TOKEN, {
         chat_id: chatId,
         text: "DBG-11A Starting price extraction..."
       });
-      const lambdaResult = await callLambda(env, {
-        url: text
-      });
+
+      // MUST send in { url: ... } payload
+      const lambdaResult = await callLambda(env, { url: text });
 
       let reply = "";
 
-      // If Lambda errored out
+      // Handle error
       if (lambdaResult.error || !lambdaResult.product_info || !lambdaResult.product_info.price) {
-        // Try to collect as much debug info as possible
         if (lambdaResult.error) reply += "Lambda error: " + lambdaResult.error + "\n";
         if (lambdaResult.product_info && lambdaResult.product_info.title)
           reply += "Extracted Title: " + lambdaResult.product_info.title + "\n";
         if (lambdaResult.product_info && lambdaResult.product_info.price)
           reply += "Extracted Price: " + lambdaResult.product_info.price + "\n";
-        if (lambdaResult.debug) reply += "Debug:\n" + lambdaResult.debug.join("\n");
-
+        if (lambdaResult.debug && lambdaResult.debug.length)
+          reply += "Debug:\n" + lambdaResult.debug.join("\n");
         await tgSend(env.TG_BOT_TOKEN, {
           chat_id: chatId,
           text: reply || "DBG-11D Lambda failed and returned no debug info."
@@ -94,7 +85,7 @@ async function handleUpdate(update, env) {
     } else {
       await tgSend(env.TG_BOT_TOKEN, {
         chat_id: chatId,
-        text: "Send a Flipkart product URL to track."
+        text: "Send any Flipkart product URL."
       });
     }
     return new Response("ok", { status: 200 });
