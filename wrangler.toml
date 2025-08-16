@@ -1,4 +1,4 @@
-name = "livepricetrackingbot-worker"
+name = "livepricetrackingbot"
 main = "worker.js"
 compatibility_date = "2025-08-15"
 
