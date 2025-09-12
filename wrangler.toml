@@ -1,3 +1,12 @@
-name = "livepricetrackingbot"
+name = "telegram-scraper-bot"
 main = "worker.js"
-compatibility_date = "2025-08-15"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production]
+[[env.production.vars]]
+BOT_ENVIRONMENT = "production"
+
+[env.development] 
+[[env.development.vars]]
+BOT_ENVIRONMENT = "development"
