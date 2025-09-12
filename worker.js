@@ -1,6 +1,43 @@
-const BOT_VERSION = "12.0.0-TERMUX-SCRAPER";
+const BOT_VERSION = "13.0.0-AUTO-DISCOVERY";
 const WEBHOOK_PATH = "/webhook";
-const SCRAPER_URL = "https://armor-hundred-underground-these.trycloudflare.com";
+const FALLBACK_SCRAPER_URL = "https://armor-hundred-underground-these.trycloudflare.com";
+
+async function getScraperUrl(env) {
+  try {
+    // Try to get active tunnel URL from Supabase
+    const response = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/proxy_config?id=eq.termux-main&status=eq.active&select=tunnel_url,last_updated`, {
+      headers: {
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.length > 0 && data[0].tunnel_url) {
+        const tunnelUrl = data[0].tunnel_url;
+        const lastUpdated = new Date(data[0].last_updated);
+        const now = new Date();
+        const timeDiff = (now - lastUpdated) / (1000 * 60); // minutes
+        
+        // Use tunnel URL if updated within last 10 minutes
+        if (timeDiff < 10) {
+          console.log(`Using Supabase tunnel URL: ${tunnelUrl} (updated ${Math.round(timeDiff)} min ago)`);
+          return tunnelUrl;
+        } else {
+          console.log(`Supabase URL too old (${Math.round(timeDiff)} min), using fallback`);
+        }
+      }
+    }
+  } catch (e) {
+    console.log(`Supabase lookup failed: ${e.message}, using fallback`);
+  }
+  
+  console.log(`Using fallback URL: ${FALLBACK_SCRAPER_URL}`);
+  return FALLBACK_SCRAPER_URL;
+}
 
 function isFlipkartUrl(txt) {
   return txt && txt.startsWith("http") && txt.includes("flipkart.com");
@@ -14,16 +51,18 @@ function isTestCommand(txt) {
   return txt && txt.toLowerCase().trim() === "hi";
 }
 
-async function callScraper(body) {
+async function callScraper(env, body, retryWithFallback = true) {
+  let scraperUrl = await getScraperUrl(env);
+  
   try {
-    const scraperUrl = SCRAPER_URL.replace(/\/+$/, "") + "/scrape";
-    console.log("Calling Termux Scraper with:", body);
-    console.log("Scraper URL:", scraperUrl);
+    const endpoint = scraperUrl.replace(/\/+$/, "") + "/scrape";
+    console.log("Calling scraper:", endpoint);
     
-    const res = await fetch(scraperUrl, {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      timeout: 15000 // 15 second timeout
     });
     
     if (!res.ok) {
@@ -35,10 +74,22 @@ async function callScraper(body) {
     return result;
   } catch (e) {
     console.error("Scraper fetch error:", e);
+    
+    // If failed and we used Supabase URL, retry with fallback
+    if (retryWithFallback && scraperUrl !== FALLBACK_SCRAPER_URL) {
+      console.log("Retrying with fallback URL...");
+      scraperUrl = FALLBACK_SCRAPER_URL;
+      return await callScraper(env, body, false); // Prevent infinite retry
+    }
+    
     return { 
       success: false, 
       error: "Scraper connection failed: " + e.message, 
-      debug: [`Error connecting to Termux scraper: ${e.message}`] 
+      debug: [
+        `Tried URL: ${scraperUrl}`,
+        `Error: ${e.message}`,
+        "Check if Termux tunnel is running"
+      ]
     };
   }
 }
@@ -74,7 +125,20 @@ export default {
       return await handleUpdate(update, env);
     }
     
-    return new Response(`Telegram Bot v${BOT_VERSION}\n\nConnected to Termux Scraper\nScraper URL: ${SCRAPER_URL}\nStatus: Ready`, { 
+    // Health check endpoint
+    if (request.method === "GET" && url.pathname === "/health") {
+      const currentUrl = await getScraperUrl(env);
+      return new Response(JSON.stringify({
+        bot_version: BOT_VERSION,
+        current_scraper_url: currentUrl,
+        status: "ready",
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    
+    return new Response(`Telegram Bot v${BOT_VERSION}\nAuto-Discovery Enabled\nStatus: Ready`, { 
       status: 200,
       headers: { "Content-Type": "text/plain" }
     });
@@ -96,20 +160,17 @@ async function handleUpdate(update, env) {
 
     console.log(`Message from @${username} (${firstName}) [${chatId}]: ${text}`);
 
-    // Check if it's a test command or product URL
     const isTest = isTestCommand(text);
     const isProductUrl = isFlipkartUrl(text) || isAmazonUrl(text);
 
     if (isTest || isProductUrl) {
-      // Send processing message
       await tgSend(env.TG_BOT_TOKEN, {
         chat_id: chatId,
         text: isTest ? 
-          "🔄 Testing connection to Termux scraper..." : 
-          "🔄 Extracting product details via mobile proxy..."
+          "🔄 Testing auto-discovery connection..." : 
+          "🔄 Extracting via mobile proxy (auto-discovery)..."
       });
 
-      // Prepare request body for scraper
       const scraperRequest = {
         url: isTest ? "hi" : text,
         command: isTest ? "hi" : "",
@@ -118,24 +179,19 @@ async function handleUpdate(update, env) {
         first_name: firstName
       };
 
-      // Call Termux scraper via tunnel
-      const scraperResult = await callScraper(scraperRequest);
-
+      const scraperResult = await callScraper(env, scraperRequest);
       let reply = "";
 
-      // Handle successful response
       if (scraperResult.success) {
         if (isTest) {
-          // For test command, use the message directly
-          reply = scraperResult.message || "✅ Scraper connection successful!";
+          reply = scraperResult.message || "✅ Auto-discovery connection successful!";
         } else if (scraperResult.product_info) {
-          // For product URLs, format the product info
           const product = scraperResult.product_info;
           reply = `✅ **Product Found**\n\n` +
                   `📱 **${product.title || "Unknown Product"}**\n\n` +
                   `💰 **Price: ${product.price || "Not Available"}**\n\n` +
                   `🔗 [View Product](${text})\n\n` +
-                  `🤖 Extracted via Termux Mobile Proxy`;
+                  `🤖 Auto-Discovery Mobile Proxy`;
           
           if (product.timestamp) {
             reply += `\n⏰ ${product.timestamp}`;
@@ -143,24 +199,13 @@ async function handleUpdate(update, env) {
         } else {
           reply = "✅ Request processed successfully!";
         }
-      } 
-      // Handle errors
-      else {
+      } else {
         reply = isTest ? 
-          "❌ **Scraper Connection Failed**\n\n" :
+          "❌ **Auto-Discovery Failed**\n\n" :
           "❌ **Extraction Failed**\n\n";
         
         if (scraperResult.error) {
           reply += `Error: ${scraperResult.error}\n`;
-        }
-        
-        if (scraperResult.product_info) {
-          if (scraperResult.product_info.title) {
-            reply += `📱 Title: ${scraperResult.product_info.title}\n`;
-          }
-          if (scraperResult.product_info.price) {
-            reply += `💰 Price: ${scraperResult.product_info.price}\n`;
-          }
         }
         
         if (scraperResult.debug && scraperResult.debug.length) {
@@ -168,8 +213,8 @@ async function handleUpdate(update, env) {
         }
         
         reply += isTest ? 
-          `\n\n🔄 Check if Termux scraper is running.` :
-          `\n\n🔄 Please try again or check if the URL is valid.`;
+          `\n\n🔄 Check Termux tunnel status.` :
+          `\n\n🔄 Please try again.`;
       }
 
       await tgSend(env.TG_BOT_TOKEN, {
@@ -180,15 +225,14 @@ async function handleUpdate(update, env) {
       });
       
     } else {
-      // Default help message
       await tgSend(env.TG_BOT_TOKEN, {
         chat_id: chatId,
-        text: "🛍️ **Termux Mobile Scraper Bot**\n\n" +
+        text: "🛍️ **Auto-Discovery Scraper Bot**\n\n" +
               "Commands:\n" +
-              "• Send `hi` to test connection\n" +
+              "• Send `hi` to test auto-discovery\n" +
               "• Send any Amazon product URL\n" +
               "• Send any Flipkart product URL\n\n" +
-              "I'll extract product name and price using mobile proxy! 🚀\n\n" +
+              "🔄 Auto-discovers active tunnel URLs!\n\n" +
               `Bot Version: ${BOT_VERSION}`,
         parse_mode: "Markdown"
       });
@@ -198,14 +242,13 @@ async function handleUpdate(update, env) {
   } catch (e) {
     console.error("Worker error:", e);
     
-    // Try to send error message to user if we have chat ID
     const msg = update?.message || update?.callback_query?.message || {};
     const chatId = msg?.chat?.id;
     
     if (chatId && env.TG_BOT_TOKEN) {
       await tgSend(env.TG_BOT_TOKEN, {
         chat_id: chatId,
-        text: "❌ **Bot Error**\n\nSomething went wrong. Please try again later.\n\n`Error: " + e.message + "`",
+        text: "❌ **Bot Error**\n\nAuto-discovery system encountered an issue.\n\n`Error: " + e.message + "`",
         parse_mode: "Markdown"
       });
     }
