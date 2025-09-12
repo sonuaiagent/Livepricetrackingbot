@@ -1,5 +1,6 @@
 const BOT_VERSION = "12.0.0-TERMUX-SCRAPER";
 const WEBHOOK_PATH = "/webhook";
+const SCRAPER_URL = "https://armor-hundred-underground-these.trycloudflare.com";
 
 function isFlipkartUrl(txt) {
   return txt && txt.startsWith("http") && txt.includes("flipkart.com");
@@ -13,9 +14,9 @@ function isTestCommand(txt) {
   return txt && txt.toLowerCase().trim() === "hi";
 }
 
-async function callScraper(env, body) {
+async function callScraper(body) {
   try {
-    const scraperUrl = env.SCRAPER_URL?.replace(/\/+$/, "") + "/scrape";
+    const scraperUrl = SCRAPER_URL.replace(/\/+$/, "") + "/scrape";
     console.log("Calling Termux Scraper with:", body);
     console.log("Scraper URL:", scraperUrl);
     
@@ -73,7 +74,7 @@ export default {
       return await handleUpdate(update, env);
     }
     
-    return new Response(`Telegram Bot v${BOT_VERSION}\n\nConnected to Termux Scraper\nStatus: Ready`, { 
+    return new Response(`Telegram Bot v${BOT_VERSION}\n\nConnected to Termux Scraper\nScraper URL: ${SCRAPER_URL}\nStatus: Ready`, { 
       status: 200,
       headers: { "Content-Type": "text/plain" }
     });
@@ -118,7 +119,7 @@ async function handleUpdate(update, env) {
       };
 
       // Call Termux scraper via tunnel
-      const scraperResult = await callScraper(env, scraperRequest);
+      const scraperResult = await callScraper(scraperRequest);
 
       let reply = "";
 
