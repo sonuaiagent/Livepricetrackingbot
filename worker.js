@@ -1,175 +1,225 @@
-// worker.js - Cloudflare Worker for E-commerce Price Tracking
+// worker.js - Optimized version with intelligent caching
+let tunnelCache = {
+  url: null,
+  lastFetched: 0,
+  cacheDuration: 5 * 60 * 1000 // 5 minutes in milliseconds
+};
+
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    
-    // CORS headers for all responses
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
 
-    // Handle CORS preflight
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { status: 200, headers: corsHeaders });
     }
 
-    // Main API endpoint
-    if (url.pathname === '/scrape' && request.method === 'POST') {
-      try {
-        const body = await request.json();
+    try {
+      const url = new URL(request.url);
+      
+      // Main scraping endpoint
+      if (url.pathname === '/scrape' && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
         const { url: productUrl, type = 'flipkart' } = body;
 
         if (!productUrl) {
-          return new Response(JSON.stringify({ 
+          return jsonResponse({ 
             success: false, 
             error: 'Missing product URL' 
-          }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }
-          });
+          }, 400, corsHeaders);
         }
 
-        // Get current scraper service URL from Supabase
-        const scraperUrl = await getScraperUrl(env);
-        
-        console.log(`Using scraper: ${scraperUrl}`);
-        console.log(`Scraping: ${type} - ${productUrl}`);
+        // Get cached or fresh scraper URL
+        const scraperUrl = await getCachedScraperUrl(env);
+        console.log(`🚀 Using scraper: ${scraperUrl} (cached: ${isCacheValid()})`);
 
         // Forward request to scraper service
         const scraperResponse = await fetch(`${scraperUrl}/scrape`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'User-Agent': 'CloudflareWorker/1.2'
+          },
           body: JSON.stringify({ url: productUrl, type: type }),
+          timeout: 25000
         });
 
         if (!scraperResponse.ok) {
-          throw new Error(`Scraper service error: ${scraperResponse.status}`);
+          // If scraper fails, try to refresh cache and retry once
+          if (scraperResponse.status >= 500) {
+            console.log('🔄 Scraper failed, refreshing cache and retrying...');
+            const freshScraperUrl = await getScraperUrl(env, true); // Force refresh
+            
+            if (freshScraperUrl !== scraperUrl) {
+              const retryResponse = await fetch(`${freshScraperUrl}/scrape`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: productUrl, type: type }),
+                timeout: 20000
+              });
+              
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json();
+                return jsonResponse({
+                  success: true,
+                  data: retryData,
+                  scraper_used: freshScraperUrl,
+                  retry_attempted: true
+                }, 200, corsHeaders);
+              }
+            }
+          }
+          
+          return jsonResponse({
+            success: false,
+            error: `Scraper service error: HTTP ${scraperResponse.status}`,
+            scraper_used: scraperUrl
+          }, scraperResponse.status, corsHeaders);
         }
 
         const data = await scraperResponse.json();
         
-        return new Response(JSON.stringify({
+        return jsonResponse({
           success: true,
           data: data,
           scraper_used: scraperUrl,
-          timestamp: new Date().toISOString()
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-
-      } catch (error) {
-        console.error('Scraping error:', error);
-        return new Response(JSON.stringify({
-          success: false,
-          error: error.message,
-          timestamp: new Date().toISOString()
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
+          cache_hit: isCacheValid()
+        }, 200, corsHeaders);
       }
-    }
 
-    // Health check endpoint
-    if (url.pathname === '/health') {
-      const scraperUrl = await getScraperUrl(env);
-      return new Response(JSON.stringify({
-        status: 'healthy',
-        scraper_url: scraperUrl,
-        timestamp: new Date().toISOString()
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
-    }
+      // Health check endpoint
+      if (url.pathname === '/health') {
+        const scraperUrl = await getCachedScraperUrl(env);
+        return jsonResponse({
+          status: 'healthy',
+          scraper_url: scraperUrl,
+          cache_status: {
+            valid: isCacheValid(),
+            age_minutes: Math.round((Date.now() - tunnelCache.lastFetched) / 60000),
+            next_refresh_in: Math.round((tunnelCache.lastFetched + tunnelCache.cacheDuration - Date.now()) / 60000)
+          }
+        }, 200, corsHeaders);
+      }
 
-    // Default response
-    return new Response(JSON.stringify({
-      message: 'Termux Scraper API',
-      endpoints: {
-        'POST /scrape': 'Scrape product data',
-        'GET /health': 'Health check'
-      },
-      version: '1.2.0'
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
-    });
+      return jsonResponse({
+        message: 'Termux Scraper API v1.3 (Cached)',
+        endpoints: {
+          'POST /scrape': 'Scrape product data',
+          'GET /health': 'Health check with cache status'
+        }
+      }, 200, corsHeaders);
+
+    } catch (error) {
+      console.error('Worker error:', error);
+      return jsonResponse({
+        success: false,
+        error: error.message
+      }, 500, corsHeaders);
+    }
   }
 };
 
 /**
- * Get active scraper URL from Supabase with IST time comparison
- * Falls back to default if Supabase is unavailable or tunnel is stale
+ * Get cached scraper URL or fetch fresh if cache is stale
  */
-async function getScraperUrl(env) {
-  const FALLBACK_SCRAPER_URL = 'https://termux-scraper-fallback.example.com';
-  const FRESHNESS_MINUTES = 10; // Consider tunnel stale after 10 minutes
+async function getCachedScraperUrl(env) {
+  if (isCacheValid()) {
+    console.log('✅ Using cached tunnel URL');
+    return tunnelCache.url;
+  }
+  
+  console.log('🔄 Cache expired, fetching fresh tunnel URL...');
+  return await getScraperUrl(env, false);
+}
+
+/**
+ * Check if cache is still valid
+ */
+function isCacheValid() {
+  return tunnelCache.url && 
+         tunnelCache.lastFetched && 
+         (Date.now() - tunnelCache.lastFetched) < tunnelCache.cacheDuration;
+}
+
+/**
+ * Fetch fresh scraper URL from Supabase and update cache
+ */
+async function getScraperUrl(env, forceRefresh = false) {
+  const FALLBACK_URL = 'http://100.91.0.175:5000';
   
   try {
-    console.log('🔍 Fetching tunnel URL from Supabase...');
+    if (!forceRefresh && isCacheValid()) {
+      return tunnelCache.url;
+    }
+
+    console.log('📡 Fetching fresh tunnel URL from Supabase...');
     
     const response = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/proxy_config?id=eq.24&status=eq.active&select=tunnel_url,last_updated,local_ip,port`, 
+      `${env.SUPABASE_URL}/rest/v1/proxy_config?id=eq.24&status=eq.active&select=tunnel_url,last_updated`, 
       {
         headers: {
           'apikey': env.SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json'
         },
-        timeout: 5000 // 5 second timeout
+        timeout: 8000
       }
     );
     
     if (!response.ok) {
-      console.log(`❌ Supabase API error: ${response.status}`);
-      return FALLBACK_SCRAPER_URL;
+      console.error(`❌ Supabase error: ${response.status}`);
+      return tunnelCache.url || FALLBACK_URL; // Use cache or fallback
     }
     
     const data = await response.json();
-    console.log(`📊 Supabase response:`, JSON.stringify(data));
     
     if (!data || data.length === 0) {
-      console.log('⚠️  No active tunnel record found in Supabase');
-      return FALLBACK_SCRAPER_URL;
+      console.log('⚠️ No tunnel records found');
+      return tunnelCache.url || FALLBACK_URL;
     }
     
     const record = data[0];
-    const { tunnel_url, last_updated, local_ip, port } = record;
+    const { tunnel_url, last_updated } = record;
     
-    if (!tunnel_url || tunnel_url === 'exit') {
-      console.log('⚠️  Invalid or placeholder tunnel URL in database');
-      return FALLBACK_SCRAPER_URL;
+    if (!tunnel_url || tunnel_url === 'exit' || !tunnel_url.includes('trycloudflare.com')) {
+      console.log(`⚠️ Invalid tunnel URL: ${tunnel_url}`);
+      return tunnelCache.url || FALLBACK_URL;
     }
     
-    // Convert last_updated to IST and check freshness
+    // Check if tunnel is fresh (within 20 minutes)
     const lastUpdated = new Date(last_updated);
-    const now = new Date();
+    const minutesAgo = (Date.now() - lastUpdated.getTime()) / (1000 * 60);
     
-    // Convert to IST for logging (UTC+5:30)
-    const istOffset = 5.5 * 60 * 60 * 1000;
-    const lastUpdatedIST = new Date(lastUpdated.getTime() + istOffset);
-    const nowIST = new Date(now.getTime() + istOffset);
-    
-    const minutesAgo = (now - lastUpdated) / (1000 * 60);
-    
-    console.log(`🕐 Last updated: ${lastUpdatedIST.toISOString().replace('T', ' ').slice(0, 19)} IST`);
-    console.log(`🕐 Current time: ${nowIST.toISOString().replace('T', ' ').slice(0, 19)} IST`);
-    console.log(`⏱️  Time difference: ${Math.round(minutesAgo)} minutes ago`);
-    
-    if (minutesAgo > FRESHNESS_MINUTES) {
-      console.log(`⚠️  Tunnel URL is stale (${Math.round(minutesAgo)} min > ${FRESHNESS_MINUTES} min), using fallback`);
-      return FALLBACK_SCRAPER_URL;
+    if (minutesAgo > 20) {
+      console.log(`⚠️ Tunnel is stale (${Math.round(minutesAgo)} min old)`);
+      return tunnelCache.url || FALLBACK_URL;
     }
     
-    console.log(`✅ Using fresh tunnel URL: ${tunnel_url} (updated ${Math.round(minutesAgo)} min ago)`);
+    // Update cache with fresh data
+    tunnelCache.url = tunnel_url;
+    tunnelCache.lastFetched = Date.now();
+    
+    console.log(`✅ Cached fresh tunnel URL: ${tunnel_url}`);
     return tunnel_url;
     
   } catch (error) {
-    console.log(`❌ Supabase lookup failed: ${error.message}`);
-    return FALLBACK_SCRAPER_URL;
+    console.error(`❌ Error fetching tunnel: ${error.message}`);
+    return tunnelCache.url || FALLBACK_URL; // Use cache or fallback
   }
+}
+
+/**
+ * Helper function for JSON responses
+ */
+function jsonResponse(data, status = 200, additionalHeaders = {}) {
+  return new Response(JSON.stringify(data, null, 2), {
+    status: status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...additionalHeaders
+    }
+  });
 }
