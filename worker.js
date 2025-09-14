@@ -1,225 +1,587 @@
-// worker.js - Optimized version with intelligent caching
-let tunnelCache = {
-  url: null,
-  lastFetched: 0,
-  cacheDuration: 5 * 60 * 1000 // 5 minutes in milliseconds
-};
-
+// worker.js - Complete Telegram Bot for Go Scraper Service
 export default {
   async fetch(request, env, ctx) {
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    };
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 200, headers: corsHeaders });
-    }
-
+    const url = new URL(request.url);
+    
     try {
-      const url = new URL(request.url);
+      console.log(`📥 Request: ${request.method} ${url.pathname}`);
       
-      // Main scraping endpoint
-      if (url.pathname === '/scrape' && request.method === 'POST') {
-        const body = await request.json().catch(() => ({}));
-        const { url: productUrl, type = 'flipkart' } = body;
-
-        if (!productUrl) {
-          return jsonResponse({ 
-            success: false, 
-            error: 'Missing product URL' 
-          }, 400, corsHeaders);
-        }
-
-        // Get cached or fresh scraper URL
-        const scraperUrl = await getCachedScraperUrl(env);
-        console.log(`🚀 Using scraper: ${scraperUrl} (cached: ${isCacheValid()})`);
-
-        // Forward request to scraper service
-        const scraperResponse = await fetch(`${scraperUrl}/scrape`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'User-Agent': 'CloudflareWorker/1.2'
-          },
-          body: JSON.stringify({ url: productUrl, type: type }),
-          timeout: 25000
-        });
-
-        if (!scraperResponse.ok) {
-          // If scraper fails, try to refresh cache and retry once
-          if (scraperResponse.status >= 500) {
-            console.log('🔄 Scraper failed, refreshing cache and retrying...');
-            const freshScraperUrl = await getScraperUrl(env, true); // Force refresh
-            
-            if (freshScraperUrl !== scraperUrl) {
-              const retryResponse = await fetch(`${freshScraperUrl}/scrape`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: productUrl, type: type }),
-                timeout: 20000
-              });
-              
-              if (retryResponse.ok) {
-                const retryData = await retryResponse.json();
-                return jsonResponse({
-                  success: true,
-                  data: retryData,
-                  scraper_used: freshScraperUrl,
-                  retry_attempted: true
-                }, 200, corsHeaders);
-              }
-            }
-          }
-          
-          return jsonResponse({
-            success: false,
-            error: `Scraper service error: HTTP ${scraperResponse.status}`,
-            scraper_used: scraperUrl
-          }, scraperResponse.status, corsHeaders);
-        }
-
-        const data = await scraperResponse.json();
-        
-        return jsonResponse({
-          success: true,
-          data: data,
-          scraper_used: scraperUrl,
-          cache_hit: isCacheValid()
-        }, 200, corsHeaders);
+      // Handle Telegram webhook
+      if (url.pathname.startsWith('/webhook/') && request.method === 'POST') {
+        return await handleTelegramWebhook(request, env);
       }
-
-      // Health check endpoint
+      
+      // Setup webhook endpoint
+      if (url.pathname === '/setWebhook') {
+        return await setupWebhook(env);
+      }
+      
+      // Health check
       if (url.pathname === '/health') {
-        const scraperUrl = await getCachedScraperUrl(env);
-        return jsonResponse({
-          status: 'healthy',
-          scraper_url: scraperUrl,
-          cache_status: {
-            valid: isCacheValid(),
-            age_minutes: Math.round((Date.now() - tunnelCache.lastFetched) / 60000),
-            next_refresh_in: Math.round((tunnelCache.lastFetched + tunnelCache.cacheDuration - Date.now()) / 60000)
-          }
-        }, 200, corsHeaders);
+        return await handleHealthCheck(env);
       }
-
-      return jsonResponse({
-        message: 'Termux Scraper API v1.3 (Cached)',
+      
+      // Default response
+      return new Response(JSON.stringify({
+        message: '🚀 Go-Powered Termux Scraper Bot v3.0',
+        status: 'online',
+        scraper: 'Go (Ultra-Fast)',
         endpoints: {
-          'POST /scrape': 'Scrape product data',
-          'GET /health': 'Health check with cache status'
-        }
-      }, 200, corsHeaders);
-
+          'POST /webhook/{token}': 'Telegram webhook',
+          'GET /setWebhook': 'Setup webhook',
+          'GET /health': 'Health check'
+        },
+        timestamp: new Date().toISOString()
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
     } catch (error) {
-      console.error('Worker error:', error);
-      return jsonResponse({
+      console.error('❌ Worker error:', error);
+      return new Response(JSON.stringify({
         success: false,
-        error: error.message
-      }, 500, corsHeaders);
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
   }
 };
 
 /**
- * Get cached scraper URL or fetch fresh if cache is stale
+ * Handle Telegram webhook
  */
-async function getCachedScraperUrl(env) {
-  if (isCacheValid()) {
-    console.log('✅ Using cached tunnel URL');
-    return tunnelCache.url;
-  }
-  
-  console.log('🔄 Cache expired, fetching fresh tunnel URL...');
-  return await getScraperUrl(env, false);
-}
-
-/**
- * Check if cache is still valid
- */
-function isCacheValid() {
-  return tunnelCache.url && 
-         tunnelCache.lastFetched && 
-         (Date.now() - tunnelCache.lastFetched) < tunnelCache.cacheDuration;
-}
-
-/**
- * Fetch fresh scraper URL from Supabase and update cache
- */
-async function getScraperUrl(env, forceRefresh = false) {
-  const FALLBACK_URL = 'http://100.91.0.175:5000';
-  
+async function handleTelegramWebhook(request, env) {
   try {
-    if (!forceRefresh && isCacheValid()) {
-      return tunnelCache.url;
+    // Validate environment variables
+    if (!env.TG_BOT_TOKEN || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+      console.error('❌ Missing environment variables');
+      return new Response('OK');
     }
-
-    console.log('📡 Fetching fresh tunnel URL from Supabase...');
     
+    const body = await request.json();
+    console.log('📨 Telegram update:', JSON.stringify(body, null, 2));
+    
+    const message = body.message;
+    if (!message) {
+      return new Response('OK');
+    }
+    
+    const chatId = message.chat.id;
+    const text = message.text || '';
+    const username = message.from.username || message.from.first_name || 'User';
+    
+    console.log(`👤 Message from @${username}: ${text}`);
+    
+    // Handle commands
+    if (text.startsWith('/start')) {
+      await sendMessage(env, chatId, 
+        `🚀 *Go-Powered Scraper Bot v3.0*
+
+` +
+        `Welcome @${username}! 👋
+
+` +
+        `⚡ *Ultra-Fast Go Service*
+` +
+        `🛒 *Amazon & Flipkart Support*
+
+` +
+        `*Commands:*
+` +
+        `• `/health` - Test Go scraper connection
+` +
+        `• `/url` - Show database status
+` +
+        `• `go` - Test Go service response
+` +
+        `• Send Amazon/Flipkart URL for price info
+
+` +
+        `✨ Ready to track prices with lightning speed!`
+      );
+    }
+    else if (text.startsWith('/health')) {
+      await handleHealthCommand(env, chatId);
+    }
+    else if (text.startsWith('/url')) {
+      await handleUrlCommand(env, chatId);
+    }
+    else if (text.toLowerCase() === 'go') {
+      await handleGoCommand(env, chatId, username);
+    }
+    else if (text.includes('amazon.in') || text.includes('flipkart.com')) {
+      await handleProductUrl(env, chatId, text, username);
+    }
+    else {
+      await sendMessage(env, chatId,
+        `❓ *Available Commands:*
+
+` +
+        `• `/health` - Test Go scraper
+` +
+        `• `/url` - Database status
+` +
+        `• `go` - Test Go service
+` +
+        `• Send a product URL to scrape
+
+` +
+        `🚀 Powered by ultra-fast Go service!`
+      );
+    }
+    
+    return new Response('OK');
+    
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    return new Response('OK');
+  }
+}
+
+/**
+ * Handle 'go' command - Test Go service
+ */
+async function handleGoCommand(env, chatId, username) {
+  try {
+    await sendMessage(env, chatId, '🔄 Testing Go scraper service...');
+    
+    // Get tunnel URL from database
+    const tunnelUrl = await getTunnelUrl(env);
+    if (!tunnelUrl) {
+      await sendMessage(env, chatId, '❌ No tunnel URL found in database');
+      return;
+    }
+    
+    // Test Go service with 'go' command
+    const startTime = Date.now();
+    const scraperResponse = await fetch(`${tunnelUrl}/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        command: 'go',
+        chat_id: chatId.toString(),
+        username: username
+      }),
+      timeout: 10000
+    });
+    
+    const responseTime = Date.now() - startTime;
+    
+    if (!scraperResponse.ok) {
+      await sendMessage(env, chatId, 
+        `❌ *Go Service Error*
+
+` +
+        `📡 Status: HTTP ${scraperResponse.status}
+` +
+        `🌐 URL: `${tunnelUrl}`
+` +
+        `⚡ Response Time: ${responseTime}ms
+
+` +
+        `🔧 Check if Go scraper is running!`
+      );
+      return;
+    }
+    
+    const result = await scraperResponse.json();
+    
+    if (result.success) {
+      await sendMessage(env, chatId,
+        `✅ *Go Service Response*
+
+` +
+        `${result.message}
+
+` +
+        `⚡ Response Time: ${responseTime}ms
+` +
+        `🚀 Service Status: Active
+` +
+        `💡 Performance: Ultra-Fast!`
+      );
+    } else {
+      await sendMessage(env, chatId, `⚠️ Go service responded: ${result.error || 'Unknown error'}`);
+    }
+    
+  } catch (error) {
+    console.error('Go command error:', error);
+    await sendMessage(env, chatId, `❌ Error testing Go service: ${error.message}`);
+  }
+}
+
+/**
+ * Handle /health command
+ */
+async function handleHealthCommand(env, chatId) {
+  try {
+    await sendMessage(env, chatId, '🔍 Checking Go scraper health...');
+    
+    const tunnelUrl = await getTunnelUrl(env);
+    if (!tunnelUrl) {
+      await sendMessage(env, chatId, '❌ No tunnel URL found in database');
+      return;
+    }
+    
+    // Test health endpoint
+    const startTime = Date.now();
+    const healthResponse = await fetch(`${tunnelUrl}/health`, {
+      method: 'GET',
+      timeout: 10000
+    });
+    
+    const responseTime = Date.now() - startTime;
+    
+    if (healthResponse.ok) {
+      const healthData = await healthResponse.json();
+      await sendMessage(env, chatId,
+        `✅ *Go Scraper Health Check*
+
+` +
+        `🌐 *URL:* `${tunnelUrl}`
+` +
+        `📡 *Status:* Healthy ✅
+` +
+        `⚡ *Response Time:* ${responseTime}ms
+` +
+        `🚀 *Service:* ${healthData.service}
+` +
+        `📅 *Version:* ${healthData.version}
+` +
+        `🕐 *Timestamp:* ${healthData.timestamp}
+
+` +
+        `💡 Ready to scrape at lightning speed!`
+      );
+    } else {
+      await sendMessage(env, chatId,
+        `❌ *Go Scraper Unhealthy*
+
+` +
+        `🌐 *URL:* `${tunnelUrl}`
+` +
+        `📡 *Status:* HTTP ${healthResponse.status}
+` +
+        `⚡ *Response Time:* ${responseTime}ms
+
+` +
+        `🔧 Check Termux Go scraper service!`
+      );
+    }
+    
+  } catch (error) {
+    console.error('Health command error:', error);
+    await sendMessage(env, chatId, 
+      `❌ *Health Check Failed*
+
+` +
+      `📡 Connection timeout or error
+` +
+      `🔧 Ensure tunnel and Go scraper are running
+
+` +
+      `Error: ${error.message}`
+    );
+  }
+}
+
+/**
+ * Handle /url command - Show database status
+ */
+async function handleUrlCommand(env, chatId) {
+  try {
     const response = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/proxy_config?id=eq.24&status=eq.active&select=tunnel_url,last_updated`, 
+      `${env.SUPABASE_URL}/rest/v1/proxy_config?id=eq.24&select=*`,
       {
         headers: {
           'apikey': env.SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`
         },
         timeout: 8000
       }
     );
     
     if (!response.ok) {
-      console.error(`❌ Supabase error: ${response.status}`);
-      return tunnelCache.url || FALLBACK_URL; // Use cache or fallback
+      await sendMessage(env, chatId, `❌ Database error: HTTP ${response.status}`);
+      return;
     }
     
     const data = await response.json();
-    
     if (!data || data.length === 0) {
-      console.log('⚠️ No tunnel records found');
-      return tunnelCache.url || FALLBACK_URL;
+      await sendMessage(env, chatId, '⚠️ No database records found');
+      return;
     }
     
     const record = data[0];
-    const { tunnel_url, last_updated } = record;
+    const lastUpdated = new Date(record.last_updated);
+    const minutesAgo = Math.round((Date.now() - lastUpdated.getTime()) / (1000 * 60));
     
-    if (!tunnel_url || tunnel_url === 'exit' || !tunnel_url.includes('trycloudflare.com')) {
-      console.log(`⚠️ Invalid tunnel URL: ${tunnel_url}`);
-      return tunnelCache.url || FALLBACK_URL;
-    }
+    const message = 
+      `📊 *Database Status*
+
+` +
+      `🌐 *Tunnel URL:*
+`${record.tunnel_url || 'Not set'}`
+
+` +
+      `🚀 *Proxy:* `${record.proxy_url}`
+` +
+      `📡 *Local IP:* `${record.local_ip}`
+` +
+      `🔌 *Port:* `8080` (Go Service)
+` +
+      `📶 *Status:* `${record.status}`
+` +
+      `💚 *Health:* `${record.health_status}`
+
+` +
+      `🕐 *Updated:* ${minutesAgo} minutes ago
+` +
+      `${minutesAgo > 15 ? '⚠️ Data might be stale!' : '✅ Data is fresh!'}
+
+` +
+      `⚡ *Service Type:* Go (Ultra-Fast)`;
     
-    // Check if tunnel is fresh (within 20 minutes)
-    const lastUpdated = new Date(last_updated);
-    const minutesAgo = (Date.now() - lastUpdated.getTime()) / (1000 * 60);
-    
-    if (minutesAgo > 20) {
-      console.log(`⚠️ Tunnel is stale (${Math.round(minutesAgo)} min old)`);
-      return tunnelCache.url || FALLBACK_URL;
-    }
-    
-    // Update cache with fresh data
-    tunnelCache.url = tunnel_url;
-    tunnelCache.lastFetched = Date.now();
-    
-    console.log(`✅ Cached fresh tunnel URL: ${tunnel_url}`);
-    return tunnel_url;
+    await sendMessage(env, chatId, message);
     
   } catch (error) {
-    console.error(`❌ Error fetching tunnel: ${error.message}`);
-    return tunnelCache.url || FALLBACK_URL; // Use cache or fallback
+    console.error('URL command error:', error);
+    await sendMessage(env, chatId, `❌ Error: ${error.message}`);
   }
 }
 
 /**
- * Helper function for JSON responses
+ * Handle product URL scraping
  */
-function jsonResponse(data, status = 200, additionalHeaders = {}) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status: status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...additionalHeaders
+async function handleProductUrl(env, chatId, productUrl, username) {
+  try {
+    await sendMessage(env, chatId, '🔄 Processing product URL with Go scraper...');
+    
+    const tunnelUrl = await getTunnelUrl(env);
+    if (!tunnelUrl) {
+      await sendMessage(env, chatId, '❌ No tunnel URL found in database');
+      return;
     }
-  });
+    
+    // Determine product type
+    const type = productUrl.includes('amazon.in') ? 'amazon' : 'flipkart';
+    
+    // Send to Go scraper service
+    const startTime = Date.now();
+    const scraperResponse = await fetch(`${tunnelUrl}/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        url: productUrl,
+        command: type,
+        chat_id: chatId.toString(),
+        username: username,
+        type: type
+      }),
+      timeout: 30000
+    });
+    
+    const responseTime = Date.now() - startTime;
+    
+    if (!scraperResponse.ok) {
+      await sendMessage(env, chatId, 
+        `❌ *Scraper Failed*
+
+` +
+        `📡 Status: HTTP ${scraperResponse.status}
+` +
+        `⚡ Response Time: ${responseTime}ms
+` +
+        `🌐 URL: `${tunnelUrl}`
+
+` +
+        `🔧 Check if Go scraper is running!`
+      );
+      return;
+    }
+    
+    const result = await scraperResponse.json();
+    
+    if (result.success && result.product_info) {
+      const product = result.product_info;
+      await sendMessage(env, chatId,
+        `✅ *Product Found* (⚡${responseTime}ms)
+
+` +
+        `📱 *${product.title}*
+
+` +
+        `💰 **Price: ₹${product.price}**
+` +
+        `⭐ Rating: ${product.rating || 'N/A'}
+` +
+        `📦 Status: ${product.availability || 'Check website'}
+
+` +
+        `🔗 [View Product](${productUrl})
+
+` +
+        `🚀 *Processed by Go Service*`
+      );
+    } else {
+      await sendMessage(env, chatId, 
+        `⚠️ *Product Not Found*
+
+` +
+        `${result.message || 'Product unavailable or URL invalid'}
+
+` +
+        `⚡ Response Time: ${responseTime}ms
+` +
+        `🚀 Processed by Go Service`
+      );
+    }
+    
+  } catch (error) {
+    console.error('Product URL error:', error);
+    await sendMessage(env, chatId, `❌ Scraping failed: ${error.message}`);
+  }
+}
+
+/**
+ * Get tunnel URL from database
+ */
+async function getTunnelUrl(env) {
+  try {
+    const response = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/proxy_config?id=eq.24&select=tunnel_url`,
+      {
+        headers: {
+          'apikey': env.SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json();
+    const tunnelUrl = data[0]?.tunnel_url;
+    
+    if (!tunnelUrl || tunnelUrl === 'exit') {
+      return null;
+    }
+    
+    return tunnelUrl;
+    
+  } catch (error) {
+    console.error('Error fetching tunnel URL:', error);
+    return null;
+  }
+}
+
+/**
+ * Setup webhook
+ */
+async function setupWebhook(env) {
+  try {
+    if (!env.TG_BOT_TOKEN) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'TG_BOT_TOKEN not found in environment variables'
+      }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
+    
+    const webhookUrl = `https://livepricetrackingbot.sonuaiagent.workers.dev/webhook/${env.TG_BOT_TOKEN}`;
+    
+    const response = await fetch(
+      `https://api.telegram.org/bot${env.TG_BOT_TOKEN}/setWebhook`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          url: webhookUrl,
+          allowed_updates: ["message"]
+        })
+      }
+    );
+    
+    const result = await response.json();
+    
+    return new Response(JSON.stringify({
+      success: result.ok,
+      description: result.description,
+      webhook_url: webhookUrl,
+      service: 'Go Scraper Service',
+      telegram_response: result
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+}
+
+/**
+ * Handle health check
+ */
+async function handleHealthCheck(env) {
+  try {
+    return new Response(JSON.stringify({
+      status: 'healthy',
+      worker_version: '3.0',
+      scraper_service: 'Go (Ultra-Fast)',
+      environment_variables: {
+        TG_BOT_TOKEN: !!env.TG_BOT_TOKEN,
+        SUPABASE_URL: !!env.SUPABASE_URL,
+        SUPABASE_ANON_KEY: !!env.SUPABASE_ANON_KEY
+      },
+      timestamp: new Date().toISOString()
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      status: 'unhealthy',
+      error: error.message
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+}
+
+/**
+ * Send message to Telegram
+ */
+async function sendMessage(env, chatId, text) {
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${env.TG_BOT_TOKEN}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: text,
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true
+        })
+      }
+    );
+    
+    const result = await response.json();
+    if (!result.ok) {
+      console.error('❌ Telegram API error:', result);
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error('❌ Send message error:', error);
+  }
 }
